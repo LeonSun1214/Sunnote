@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+
+    /* 四科主色。取自 dataviz 参考色板的已验证槽位，深浅各一套步进值。
+       改这里就能同时改到导航、徽章和图表 —— 图表读的是同一个变量。 */
+    --subj-listening: #2a78d6;
+    --subj-reading: #008300;
+    --subj-writing: #eda100;
+    --subj-speaking: #4a3aa7;
+
+    /* 图表底色，validate_palette.js 就是按这两个值跑的 */
+    --chart-surface: #ffffff;
+    --chart-grid: #e2e8f0;
+    --chart-ink: #64748b;
+  }
+
+  .dark {
+    --subj-listening: #3987e5;
+    --subj-reading: #008300;
+    --subj-writing: #c98500;
+    --subj-speaking: #9085e9;
+
+    --chart-surface: #0f172a;
+    --chart-grid: #1e293b;
+    --chart-ink: #94a3b8;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+      'Microsoft YaHei', sans-serif;
+  }
+
+  .dark body {
+    @apply bg-slate-950 text-slate-100;
+  }
+
+  /* 数字输入去掉原生 spinner，改用自己的 +/- 按钮，手机上更好按 */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none
+           transition placeholder:text-slate-400
+           focus:border-slate-400 focus:ring-2 focus:ring-slate-200
+           dark:border-slate-700 dark:bg-slate-950 dark:placeholder:text-slate-600
+           dark:focus:border-slate-500 dark:focus:ring-slate-800;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium
+           transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-slate-900 text-white hover:bg-slate-700
+           dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white;
+  }
+
+  .btn-ghost {
+    @apply btn border border-slate-300 bg-transparent hover:bg-slate-100
+           dark:border-slate-700 dark:hover:bg-slate-800;
+  }
+
+  .btn-danger {
+    @apply btn border border-red-300 text-red-600 hover:bg-red-50
+           dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950;
+  }
+
+  .label {
+    @apply mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+
+  /* 科目主色的工具类。走 CSS 变量而不是拼 Tailwind 类名，
+     这样深浅模式的切换只在 :root / .dark 两处发生。 */
+  .text-subj-listening { color: var(--subj-listening); }
+  .text-subj-reading { color: var(--subj-reading); }
+  .text-subj-writing { color: var(--subj-writing); }
+  .text-subj-speaking { color: var(--subj-speaking); }
+
+  .border-subj-listening { border-color: var(--subj-listening); }
+  .border-subj-reading { border-color: var(--subj-reading); }
+  .border-subj-writing { border-color: var(--subj-writing); }
+  .border-subj-speaking { border-color: var(--subj-speaking); }
+
+  .bg-subj-listening-soft { background-color: color-mix(in srgb, var(--subj-listening) 12%, transparent); }
+  .bg-subj-reading-soft { background-color: color-mix(in srgb, var(--subj-reading) 12%, transparent); }
+  .bg-subj-writing-soft { background-color: color-mix(in srgb, var(--subj-writing) 12%, transparent); }
+  .bg-subj-speaking-soft { background-color: color-mix(in srgb, var(--subj-speaking) 12%, transparent); }
+}
