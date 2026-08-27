@@ -8,24 +8,14 @@ interface Props {
   config: TaskTypeConfig;
   block: ObjectiveBlock;
   onChange: (patch: Partial<ObjectiveBlock>) => void;
-  /** 该题型在当前模块不可用时禁用，并说明原因（如 Academic Talks 不进 Lower）。 */
-  disabledReason?: string;
 }
 
-export function ObjectiveBlockInput({ config, block, onChange, disabledReason }: Props) {
-  const disabled = Boolean(disabledReason);
+export function ObjectiveBlockInput({ config, block, onChange }: Props) {
   const acc = accuracy(block.total, block.wrong);
   const wrongExceedsTotal = block.total > 0 && block.wrong > block.total;
 
   return (
-    <div
-      className={cx(
-        'rounded-lg border p-3 transition',
-        disabled
-          ? 'border-dashed border-slate-200 bg-slate-50/50 opacity-60 dark:border-slate-800 dark:bg-slate-900/30'
-          : 'border-slate-200 dark:border-slate-800',
-      )}
-    >
+    <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <div className="min-w-0">
           <p className="text-sm font-medium">
@@ -33,33 +23,28 @@ export function ObjectiveBlockInput({ config, block, onChange, disabledReason }:
             {config.labelEn && (
               <span className="ml-1.5 text-xs font-normal text-slate-400 dark:text-slate-500">{config.labelEn}</span>
             )}
-            {!disabled && block.total > 0 && (
+            {block.total > 0 && (
               <span className="ml-1.5 text-xs font-normal text-slate-500 dark:text-slate-400">{block.total} 题</span>
             )}
           </p>
-          {disabledReason ? (
-            <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">{disabledReason}</p>
-          ) : (
-            config.hint && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{config.hint}</p>
-          )}
+          {config.hint && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{config.hint}</p>}
         </div>
-        {!disabled && <AccuracyBadge value={acc} detail={{ total: block.total, wrong: block.wrong }} size="sm" />}
+        <AccuracyBadge value={acc} detail={{ total: block.total, wrong: block.wrong }} size="sm" />
       </div>
 
-      {!disabled &&
-        (config.inputStyle === 'dots' ? (
-          <DotRow total={block.total} wrong={block.wrong} onChange={(wrong) => onChange({ wrong })} />
-        ) : (
-          // 题数由 config 固定，录入者只填错了几个
-          <NumberStepper
-            label={`错题数（共 ${block.total} 题）`}
-            value={block.wrong}
-            min={0}
-            max={Math.max(block.total, 0)}
-            error={wrongExceedsTotal ? `错题数不能超过 ${block.total}` : undefined}
-            onChange={(wrong) => onChange({ wrong })}
-          />
-        ))}
+      {config.inputStyle === 'dots' ? (
+        <DotRow total={block.total} wrong={block.wrong} onChange={(wrong) => onChange({ wrong })} />
+      ) : (
+        // 题数由 config 固定，录入者只填错了几个
+        <NumberStepper
+          label={`错题数（共 ${block.total} 题）`}
+          value={block.wrong}
+          min={0}
+          max={Math.max(block.total, 0)}
+          error={wrongExceedsTotal ? `错题数不能超过 ${block.total}` : undefined}
+          onChange={(wrong) => onChange({ wrong })}
+        />
+      )}
     </div>
   );
 }
