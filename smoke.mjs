@@ -1,10 +1,25 @@
+import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
-const BASE = 'http://127.0.0.1:5173';
-const SHOTS = process.env.SHOTS;
+const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:5173';
+const SHOTS = process.env.SHOTS ?? './shots';
 const errors = [];
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+await mkdir(SHOTS, { recursive: true });
+
+// 浏览器路径：CI 上 `playwright install chromium` 会装到 Playwright 自己找得到的
+// 地方，直接 launch 即可；有些开发环境用的是预装在别处的 Chromium 且禁止下载，
+// 那种情况用 PLAYWRIGHT_EXECUTABLE_PATH 指过去。
+const executablePath = process.env.PLAYWRIGHT_EXECUTABLE_PATH || undefined;
+let browser;
+try {
+  browser = await chromium.launch(executablePath ? { executablePath } : {});
+} catch (error) {
+  console.error('启动 Chromium 失败。');
+  console.error('  CI 上先跑：npx playwright install --with-deps chromium');
+  console.error('  用预装浏览器的环境：PLAYWRIGHT_EXECUTABLE_PATH=<chromium 路径> npm run e2e');
+  throw error;
+}
 const page = await browser.newPage({ viewport: { width: 1180, height: 900 } });
 page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('404')) errors.push(`console: ${m.text()}`); });
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
@@ -309,7 +324,7 @@ await step('导出 JSON 备份', async () => {
   await page.getByRole('button', { name: '导出 JSON 备份' }).click();
   const download = await dl;
   const fs = await import('node:fs/promises');
-  exported = `${SHOTS}/../backup.json`;
+  exported = `${SHOTS}/backup.json`;
   await download.saveAs(exported);
   const parsed = JSON.parse(await fs.readFile(exported, 'utf8'));
   if (parsed.sessions.length !== 4) throw new Error(`备份里应有 4 次练习，实际 ${parsed.sessions.length}`);
