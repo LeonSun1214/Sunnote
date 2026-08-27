@@ -16,12 +16,11 @@ const step = async (name, fn) => {
   catch (e) { console.log(`  ✗ ${name}: ${e.message.split('\n')[0]}`); errors.push(`${name}: ${e.message.split('\n')[0]}`); }
 };
 
-/** 在某个模块区块里，给某个题型填总数和错题数。 */
-const fillBlock = async (sectionText, taskLabel, total, wrong) => {
+/** 在某个模块区块里给某个题型填错题数。题数由 config 固定，界面上没有总数输入。 */
+const fillWrong = async (sectionText, taskLabel, wrong) => {
   const section = page.locator('section').filter({ has: page.locator('h2', { hasText: sectionText }) }).first();
   const box = section.locator('div.rounded-lg').filter({ hasText: taskLabel }).first();
-  await box.getByRole('spinbutton', { name: '题目总数' }).fill(String(total));
-  await box.getByRole('spinbutton', { name: '错题数' }).fill(String(wrong));
+  await box.getByRole('spinbutton', { name: /^错题数/ }).fill(String(wrong));
 };
 
 console.log('— 空状态 —');
@@ -34,32 +33,39 @@ await page.goto(`${BASE}/#/listening/new`, { waitUntil: 'networkidle' });
 await step('听力表单打开', () => page.getByText('这次的模块走向').waitFor({ timeout: 5000 }));
 await step('填套题名', () => page.getByPlaceholder(/官方模考/).fill('官方模考 2'));
 
-// Router 20 题：对话 8 错 1、通知 6 错 2、学术讲座 6 错 3 → 答对 14/20 = 70%，刚好压线
-await step('填 Router 三个题型（合计 20 题，错 6）', async () => {
-  await fillBlock('Router', '对话', 8, 1);
-  await fillBlock('Router', '通知', 6, 2);
-  await fillBlock('Router', '学术讲座', 6, 3);
+// Router 固定 20 题（选回应 8 + 对话 4 + 通知 4 + 讲座 4），错 6 → 答对 14/20 = 70%，刚好压线
+await step('填 Router 四个题型的错题数（共错 6）', async () => {
+  await fillWrong('Router', '选回应', 2);
+  await fillWrong('Router', '对话', 1);
+  await fillWrong('Router', '通知', 2);
+  await fillWrong('Router', '讲座', 1);
 });
 await step('Router 压线提示：答对 14 题正好过 70%', () =>
   page.getByText(/过了 70% 分流线/).first().waitFor({ timeout: 3000 }));
 await page.screenshot({ path: `${SHOTS}/02-listening-form.png`, fullPage: true });
 
-await step('切到 Lower 后学术讲座被禁用', async () => {
+await step('切到 Lower 后讲座被禁用', async () => {
   await page.getByRole('button', { name: /^Lower/ }).first().click();
   await page.getByText('Lower 模块没有这个题型').first().waitFor({ timeout: 3000 });
 });
 await page.screenshot({ path: `${SHOTS}/03-lower-disabled.png`, fullPage: true });
 
-await step('切回 Upper 后 Router 已填的数据没被清掉', async () => {
+await step('切回 Upper 后 Router 已填的错题数没被清掉', async () => {
   await page.getByRole('button', { name: /^Upper/ }).first().click();
   const v = await page.locator('section').filter({ has: page.locator('h2', { hasText: 'Router' }) }).first()
-    .locator('div.rounded-lg').filter({ hasText: '对话' }).first()
-    .getByRole('spinbutton', { name: '题目总数' }).inputValue();
-  if (v !== '8') throw new Error(`Router 对话题数应为 8，实际 ${v}`);
+    .locator('div.rounded-lg').filter({ hasText: '选回应' }).first()
+    .getByRole('spinbutton', { name: /^错题数/ }).inputValue();
+  if (v !== '2') throw new Error(`Router 选回应错题数应为 2，实际 ${v}`);
 });
 
-await step('填 Upper（15 题错 3）并保存', async () => {
-  await fillBlock('Upper', '对话', 15, 3);
+await step('Upper 里通知被禁用（只有 Lower 和 Router 有通知）', async () => {
+  const upper = page.locator('section').filter({ has: page.locator('h2', { hasText: 'Upper' }) }).first();
+  await upper.getByText('Upper 模块没有这个题型').first().waitFor({ timeout: 3000 });
+});
+
+// Upper 固定 15 题（选回应 3 + 对话 4 + 讲座 8），错 3 → 12/15
+await step('填 Upper 错题数（共错 3）并保存', async () => {
+  await fillWrong('Upper', '讲座', 3);
   await page.getByRole('button', { name: '保存这次练习' }).click();
   await page.waitForURL(/#\/listening\/session\//, { timeout: 5000 });
 });
@@ -92,16 +98,24 @@ await step('选 Lower 路径', async () => {
   await page.getByPlaceholder(/官方模考/).fill('官方模考 3');
   await page.getByRole('button', { name: /^Lower/ }).first().click();
 });
-await step('阅读三个题型在 Lower 下都可用（不像听力有禁用项）', async () => {
-  const disabled = await page.getByText(/模块没有这个题型/).count();
-  if (disabled !== 0) throw new Error(`阅读不该有禁用题型，实际有 ${disabled} 个`);
+await step('Lower 下学术长文被禁用（长文只进 Router 和 Upper）', async () => {
+  const lower = page.locator('section').filter({ has: page.locator('h2', { hasText: 'Lower' }) }).first();
+  const box = lower.locator('div.rounded-lg').filter({ hasText: '学术长文' }).first();
+  await box.getByText('Lower 模块没有这个题型').waitFor({ timeout: 3000 });
+});
+await step('Lower 下词汇和短篇仍可用', async () => {
+  const lower = page.locator('section').filter({ has: page.locator('h2', { hasText: 'Lower' }) }).first();
+  for (const label of ['词汇填空', '短篇实用文本']) {
+    const box = lower.locator('div.rounded-lg').filter({ hasText: label }).first();
+    await box.getByRole('spinbutton', { name: /^错题数/ }).waitFor({ timeout: 3000 });
+  }
 });
 
-// Router 20 题：词汇 7 错 3、短篇 7 错 3、长文 6 错 2 → 答对 12/20 = 60%，门槛 14 题，差 2
-await step('填 Router 三个题型（合计 20 题，错 8）', async () => {
-  await fillBlock('Router', '词汇填空', 7, 3);
-  await fillBlock('Router', '短篇实用文本', 7, 3);
-  await fillBlock('Router', '学术长文', 6, 2);
+// Router 固定 20 题（词汇 10 + 短篇 5 + 长文 5），错 8 → 答对 12/20 = 60%，门槛 14 题，差 2
+await step('填 Router 三个题型的错题数（共错 8）', async () => {
+  await fillWrong('Router', '词汇填空', 4);
+  await fillWrong('Router', '短篇实用文本', 2);
+  await fillWrong('Router', '学术长文', 2);
 });
 await step('Router 未达线提示：答对 12 题，还差 2 题', async () => {
   await page.getByText(/还差 2 题/).first().waitFor({ timeout: 3000 });
@@ -109,11 +123,10 @@ await step('Router 未达线提示：答对 12 题，还差 2 题', async () => 
 });
 await page.screenshot({ path: `${SHOTS}/06-reading-below-threshold.png`, fullPage: true });
 
-// Lower 15 题：词汇 5 错 2、短篇 5 错 2、长文 5 错 1 → 10/15
-await step('填 Lower（15 题错 5）并保存', async () => {
-  await fillBlock('Lower', '词汇填空', 5, 2);
-  await fillBlock('Lower', '短篇实用文本', 5, 2);
-  await fillBlock('Lower', '学术长文', 5, 1);
+// Lower 固定 15 题（词汇 10 + 短篇 5，没有长文），错 5 → 10/15
+await step('填 Lower 错题数（共错 5）并保存', async () => {
+  await fillWrong('Lower', '词汇填空', 3);
+  await fillWrong('Lower', '短篇实用文本', 2);
   await page.getByRole('button', { name: '保存这次练习' }).click();
   await page.waitForURL(/#\/reading\/session\//, { timeout: 5000 });
 });
@@ -154,10 +167,11 @@ await step('保存口语练习', async () => {
 
 console.log('— 写作字数校验 —');
 await page.goto(`${BASE}/#/writing/new`, { waitUntil: 'networkidle' });
-await step('造句题默认 10 题', async () => {
-  const v = await page.locator('div.rounded-lg').filter({ hasText: '造句' }).first()
-    .getByRole('spinbutton', { name: '题目总数' }).inputValue();
-  if (v !== '10') throw new Error(`Build a Sentence 应默认 10 题，实际 ${v}`);
+await step('造句题固定 10 题，界面上没有总数输入', async () => {
+  const box = page.locator('div.rounded-lg').filter({ hasText: '造句' }).first();
+  await box.getByText('10 题').first().waitFor({ timeout: 3000 });
+  const totalInputs = await box.getByRole('spinbutton', { name: '题目总数' }).count();
+  if (totalInputs !== 0) throw new Error('题数已固定，不该还有总数输入框');
 });
 await step('Email 字数不够时提示偏少', async () => {
   await page.getByPlaceholder(/官方模考/).fill('写作练习 1');

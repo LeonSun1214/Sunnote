@@ -3,6 +3,18 @@ import type { SubjectConfig } from '../../types';
 /**
  * 新版 2026 听力：Router 20 题 → Upper 15 题 或 Lower 15 题，必答共 35 题。
  * 加试题不计分，不录入。
+ *
+ * 每个题型在每个模块下的题数是固定的，所以 items 里既写了题数、也表达了可用性：
+ *
+ *              Router  Upper  Lower
+ *   选回应         8      3      7
+ *   对话           4      4      4
+ *   通知           4      —      4
+ *   讲座           4      8      —
+ *              ────────────────────
+ *                 20     15     15
+ *
+ * 规律是 Upper 砍掉偏日常的通知、Lower 砍掉偏学术的讲座 —— 自适应本来就该这样分。
  */
 export const listeningConfig: SubjectConfig = {
   key: 'listening',
@@ -26,7 +38,7 @@ export const listeningConfig: SubjectConfig = {
       minutes: 11,
       scoredItems: 15,
       maxBand: 6,
-      hint: '高分模块，含 Academic Talks，封顶 Band 6。',
+      hint: '高分模块，讲座占一半，没有通知。封顶 Band 6。',
     },
     {
       key: 'lower',
@@ -34,7 +46,7 @@ export const listeningConfig: SubjectConfig = {
       minutes: 7,
       scoredItems: 15,
       maxBand: 4,
-      hint: '低分模块，没有 Academic Talks，封顶 Band 4。',
+      hint: '低分模块，没有讲座。封顶 Band 4。',
     },
   ],
   taskTypes: [
@@ -43,30 +55,32 @@ export const listeningConfig: SubjectConfig = {
       label: '选回应',
       labelEn: 'Choose a Response',
       kind: 'objective',
+      items: { router: 8, upper: 3, lower: 7 },
       hint: '听一句话，选出最合适的回应。',
     },
     {
       key: 'conversations',
       label: '对话',
-      labelEn: 'Conversations',
+      labelEn: 'Conversation',
       kind: 'objective',
-      hint: '校园场景对话。',
+      items: { router: 4, upper: 4, lower: 4 },
+      hint: '校园场景对话。三个模块都是 4 题。',
     },
     {
       key: 'announcements',
       label: '通知',
-      labelEn: 'Announcements',
+      labelEn: 'Announcement',
       kind: 'objective',
-      hint: '广播、通告类短听力。',
+      items: { router: 4, lower: 4 },
+      hint: '广播、通告类短听力。Upper 模块没有这个题型。',
     },
     {
       key: 'academic_talks',
-      label: '学术讲座',
-      labelEn: 'Academic Talks',
+      label: '讲座',
+      labelEn: 'Lecture',
       kind: 'objective',
-      // 只在 Router 和 Upper 出现，Lower 路径下界面会禁用它
-      availableIn: ['router', 'upper'],
-      hint: '只出现在 Router 和 Upper，Lower 模块没有这个题型。',
+      items: { router: 4, upper: 8 },
+      hint: '学术讲座。Lower 模块没有这个题型，Upper 里占到 8 题。',
     },
   ],
 };

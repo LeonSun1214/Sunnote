@@ -50,7 +50,7 @@ function SessionFormInner({ config, sessionId }: { config: SubjectConfig; sessio
   );
 
   const [blocks, setBlocks] = useState<Map<string, ObjectiveBlock>>(() => {
-    const base = initialBlocks(config, existing?.path ?? 'upper', data.sessions);
+    const base = initialBlocks(config, existing?.path ?? 'upper');
     for (const block of existing?.blocks ?? []) {
       base.set(blockKey(block.module, block.taskType), { ...block });
     }
@@ -110,13 +110,14 @@ function SessionFormInner({ config, sessionId }: { config: SubjectConfig; sessio
     setPath(next);
     // 切换走向时补上新模块的题组，已填的保留 —— 误点一下不该清空录入
     setBlocks((prev) => {
-      const merged = new Map(initialBlocks(config, next, data.sessions));
+      const merged = new Map(initialBlocks(config, next));
       for (const [key, block] of prev) if (merged.has(key)) merged.set(key, block);
       return merged;
     });
   };
 
-  const canSave = setName.trim().length > 0 && (overallTotals.total > 0 || touchedTasks.size > 0);
+  // 题数由 config 固定，overallTotals.total 恒大于 0，所以只看套题名填了没有
+  const canSave = setName.trim().length > 0;
 
   const handleSave = () => {
     const payload = {
@@ -275,9 +276,7 @@ function SessionFormInner({ config, sessionId }: { config: SubjectConfig; sessio
         </button>
       </div>
       {!canSave && (
-        <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-          填上套题名称，并至少录入一个题型的题数或一道主观题
-        </p>
+        <p className="text-center text-xs text-slate-500 dark:text-slate-400">填上套题名称才能保存</p>
       )}
     </div>
   );
@@ -306,8 +305,6 @@ function ModuleSection({
   const { total, wrong } = blocksTotals(moduleBlocks);
   const acc = blocksAccuracy(moduleBlocks);
   const target = moduleConfig.scoredItems;
-  // 每套题的题型分布本来就会浮动，题数对不上只提醒不拦截
-  const countMismatch = total > 0 && total !== target;
 
   const threshold = config.routingThreshold ?? 0.7;
   const needed = itemsNeededToPass(target, threshold);
@@ -344,12 +341,6 @@ function ModuleSection({
             ? `答对 ${correct} 题，过了 ${Math.round(threshold * 100)}% 分流线（需 ${needed} 题），能进 Upper。`
             : `答对 ${correct} 题，还差 ${Math.max(needed - correct, 0)} 题到 ${Math.round(threshold * 100)}% 分流线（需 ${needed} 题）。达不到就只能进 Lower，分数封顶 Band 4。`}
         </div>
-      )}
-
-      {countMismatch && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          各题型合计 {total} 题，和这个模块常见的 {target} 题对不上。分布本来会浮动，确认没漏填就行。
-        </p>
       )}
 
       {objectiveTypes.map((taskType) => {
