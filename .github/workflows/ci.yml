@@ -25,3 +25,33 @@ jobs:
       - run: npm test
       # build 的第一段就是 tsc -b，类型错误一样会挡住，不必再单跑 typecheck
       - run: npm run build
+
+  # 端到端：真的开一个浏览器把应用点一遍。单测保证算得对，这个保证点得通。
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # --with-deps 会装 Chromium 需要的系统库，runner 上默认没有
+      - run: npx playwright install --with-deps chromium
+      - name: 起 dev server 并等它就绪
+        run: |
+          npm run dev -- --port 5173 --host 127.0.0.1 &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://127.0.0.1:5173/ && exit 0
+            sleep 1
+          done
+          echo "dev server 60 秒内没起来"
+          exit 1
+      - run: npm run e2e
+      # 挂了的时候截图是唯一能看出「当时屏幕上是什么」的东西
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: shots/
+          retention-days: 7

@@ -349,23 +349,12 @@ function ModuleSection({
         </div>
       )}
 
+      {/* 这个模块没有的题型直接不渲染。模块说明里已经写清楚少了哪类，
+          留一排灰条只是占地方。 */}
       {objectiveTypes.map((taskType) => {
         const key = blockKey(module, taskType.key);
         const block = blocks.get(key);
-        const available = isTaskTypeAvailable(taskType, module);
-
-        if (!available) {
-          return (
-            <ObjectiveBlockInput
-              key={key}
-              config={taskType}
-              block={{ id: key, module, taskType: taskType.key, total: 0, wrong: 0 }}
-              onChange={() => {}}
-              disabledReason={`${moduleConfig.label} 模块没有这个题型`}
-            />
-          );
-        }
-        if (!block) return null;
+        if (!block || !isTaskTypeAvailable(taskType, module)) return null;
         return (
           <ObjectiveBlockInput
             key={key}
