@@ -1,0 +1,27 @@
+name: CI
+
+# 合并前的护栏。deploy.yml 只在 push 到 main 时跑，那已经太晚了。
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+# 同一个 PR 连续推送时取消还在跑的旧任务，不浪费额度
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # build 的第一段就是 tsc -b，类型错误一样会挡住，不必再单跑 typecheck
+      - run: npm run build
