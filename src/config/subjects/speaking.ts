@@ -18,7 +18,7 @@ export const speakingConfig: SubjectConfig = {
       label: '跟读',
       labelEn: 'Listen and Repeat',
       kind: 'objective',
-      defaultTotal: 7,
+      items: { none: 7 },
       responseSeconds: 12,
       inputStyle: 'dots',
       hint: '7 句，每句听一遍复述一遍。点掉没复述准的那几句。',

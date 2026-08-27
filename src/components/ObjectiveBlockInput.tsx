@@ -33,6 +33,9 @@ export function ObjectiveBlockInput({ config, block, onChange, disabledReason }:
             {config.labelEn && (
               <span className="ml-1.5 text-xs font-normal text-slate-400 dark:text-slate-500">{config.labelEn}</span>
             )}
+            {!disabled && block.total > 0 && (
+              <span className="ml-1.5 text-xs font-normal text-slate-500 dark:text-slate-400">{block.total} 题</span>
+            )}
           </p>
           {disabledReason ? (
             <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">{disabledReason}</p>
@@ -45,28 +48,17 @@ export function ObjectiveBlockInput({ config, block, onChange, disabledReason }:
 
       {!disabled &&
         (config.inputStyle === 'dots' ? (
-          <DotRow
-            total={block.total}
-            wrong={block.wrong}
+          <DotRow total={block.total} wrong={block.wrong} onChange={(wrong) => onChange({ wrong })} />
+        ) : (
+          // 题数由 config 固定，录入者只填错了几个
+          <NumberStepper
+            label={`错题数（共 ${block.total} 题）`}
+            value={block.wrong}
+            min={0}
+            max={Math.max(block.total, 0)}
+            error={wrongExceedsTotal ? `错题数不能超过 ${block.total}` : undefined}
             onChange={(wrong) => onChange({ wrong })}
           />
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            <NumberStepper
-              label="题目总数"
-              value={block.total}
-              min={0}
-              onChange={(total) => onChange({ total, wrong: Math.min(block.wrong, total) })}
-            />
-            <NumberStepper
-              label="错题数"
-              value={block.wrong}
-              min={0}
-              max={Math.max(block.total, 0)}
-              error={wrongExceedsTotal ? '错题数不能超过总数' : undefined}
-              onChange={(wrong) => onChange({ wrong })}
-            />
-          </div>
         ))}
     </div>
   );

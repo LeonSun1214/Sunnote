@@ -146,10 +146,16 @@ export interface TaskTypeConfig {
   /** 英文原词，保留 ETS 说法便于对题。 */
   labelEn?: string;
   kind: 'objective' | 'subjective';
-  /** 客观题的默认题数。 */
-  defaultTotal?: number;
-  /** 限定只在这些模块出现，如 Academic Talks 不进 Lower。 */
-  availableIn?: ModuleKind[];
+  /**
+   * 客观题在各模块下的固定题数。
+   *
+   * 键同时表达可用性 —— 不在表里就代表该模块没有这个题型（比如听力的
+   * Announcement 不进 Upper、阅读的 Academic passages 不进 Lower）。
+   * 非自适应科目（写作/口语）没有模块，用 'none' 键，和 blockKey 的约定一致。
+   *
+   * 题数是固定的，所以录入时只填错了几个，不用再填总数。
+   */
+  items?: Partial<Record<ModuleKind | 'none', number>>;
   /** 官方给的答题时间。 */
   minutes?: number;
   /** 写作字数目标区间。 */

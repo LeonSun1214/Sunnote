@@ -18,7 +18,7 @@ export const writingConfig: SubjectConfig = {
       label: '造句',
       labelEn: 'Build a Sentence',
       kind: 'objective',
-      defaultTotal: 10,
+      items: { none: 10 },
       minutes: 6,
       hint: '10 道语法题，约 6 分钟，平均每题 35–40 秒。',
     },
