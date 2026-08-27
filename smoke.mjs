@@ -83,6 +83,54 @@ await step('写笔记并保存', async () => {
 });
 await page.screenshot({ path: `${SHOTS}/05-notes.png`, fullPage: true });
 
+// 阅读走「考砸」那条路径：Router 未达线 → Lower。听力测的是达线 → Upper，
+// 所以未达线提示和 Lower 的完整保存至今没被跑到过。
+console.log('— 阅读：Router 未达线 → Lower —');
+await page.goto(`${BASE}/#/reading/new`, { waitUntil: 'networkidle' });
+await step('阅读表单打开', () => page.getByText('这次的模块走向').waitFor({ timeout: 5000 }));
+await step('选 Lower 路径', async () => {
+  await page.getByPlaceholder(/官方模考/).fill('官方模考 3');
+  await page.getByRole('button', { name: /^Lower/ }).first().click();
+});
+await step('阅读三个题型在 Lower 下都可用（不像听力有禁用项）', async () => {
+  const disabled = await page.getByText(/模块没有这个题型/).count();
+  if (disabled !== 0) throw new Error(`阅读不该有禁用题型，实际有 ${disabled} 个`);
+});
+
+// Router 20 题：词汇 7 错 3、短篇 7 错 3、长文 6 错 2 → 答对 12/20 = 60%，门槛 14 题，差 2
+await step('填 Router 三个题型（合计 20 题，错 8）', async () => {
+  await fillBlock('Router', '词汇填空', 7, 3);
+  await fillBlock('Router', '短篇实用文本', 7, 3);
+  await fillBlock('Router', '学术长文', 6, 2);
+});
+await step('Router 未达线提示：答对 12 题，还差 2 题', async () => {
+  await page.getByText(/还差 2 题/).first().waitFor({ timeout: 3000 });
+  await page.getByText(/封顶 Band 4/).first().waitFor({ timeout: 3000 });
+});
+await page.screenshot({ path: `${SHOTS}/06-reading-below-threshold.png`, fullPage: true });
+
+// Lower 15 题：词汇 5 错 2、短篇 5 错 2、长文 5 错 1 → 10/15
+await step('填 Lower（15 题错 5）并保存', async () => {
+  await fillBlock('Lower', '词汇填空', 5, 2);
+  await fillBlock('Lower', '短篇实用文本', 5, 2);
+  await fillBlock('Lower', '学术长文', 5, 1);
+  await page.getByRole('button', { name: '保存这次练习' }).click();
+  await page.waitForURL(/#\/reading\/session\//, { timeout: 5000 });
+});
+await step('详情页总正确率 = 22/35 = 63%', () =>
+  page.getByText('63%').first().waitFor({ timeout: 3000 }));
+await step('详情页标出 Router → Lower', () =>
+  page.getByText('Router → Lower').waitFor({ timeout: 3000 }));
+await step('详情页 Router 区块显示没过分流线', () =>
+  page.getByText(/没过 70% 分流线/).first().waitFor({ timeout: 3000 }));
+await page.screenshot({ path: `${SHOTS}/07-reading-detail.png`, fullPage: true });
+
+await step('统计页出现 Lower 模块', async () => {
+  await page.goto(`${BASE}/#/reading?tab=stats`, { waitUntil: 'networkidle' });
+  const modules = page.locator('section').filter({ has: page.locator('h2', { hasText: '分模块正确率' }) });
+  await modules.getByText('Lower').waitFor({ timeout: 3000 });
+});
+
 console.log('— 口语跟读打点（切科目不该串数据）—');
 await page.goto(`${BASE}/#/speaking/new`, { waitUntil: 'networkidle' });
 await step('跟读渲染出 7 个圆点', async () => {
@@ -98,7 +146,7 @@ await step('点第 2 个圆点 → 错 2 → 5/7 = 71%', async () => {
   await page.getByRole('button', { name: '第 2 题' }).click();
   await page.getByText('71%').first().waitFor({ timeout: 3000 });
 });
-await page.screenshot({ path: `${SHOTS}/06-speaking-dots.png`, fullPage: true });
+await page.screenshot({ path: `${SHOTS}/08-speaking-dots.png`, fullPage: true });
 await step('保存口语练习', async () => {
   await page.getByRole('button', { name: '保存这次练习' }).click();
   await page.waitForURL(/#\/speaking\/session\//, { timeout: 5000 });
@@ -121,7 +169,7 @@ await step('给 Email 打个自评分再保存', async () => {
   const email = page.locator('section').filter({ has: page.locator('h2', { hasText: '写邮件' }) }).first();
   await email.getByRole('button', { name: '3', exact: true }).click();
 });
-await page.screenshot({ path: `${SHOTS}/07-writing-words.png`, fullPage: true });
+await page.screenshot({ path: `${SHOTS}/09-writing-words.png`, fullPage: true });
 await step('保存写作练习', async () => {
   await page.getByRole('button', { name: '保存这次练习' }).click();
   await page.waitForURL(/#\/writing\/session\//, { timeout: 5000 });
@@ -137,7 +185,7 @@ await step('加生词并进入抽查模式', async () => {
   await page.getByRole('button', { name: '抽查模式' }).click();
   await page.getByRole('button', { name: '点开看释义' }).waitFor({ timeout: 3000 });
 });
-await page.screenshot({ path: `${SHOTS}/08-vocab.png`, fullPage: true });
+await page.screenshot({ path: `${SHOTS}/10-vocab.png`, fullPage: true });
 
 console.log('— 持久化 —');
 await page.goto(`${BASE}/#/listening`, { waitUntil: 'networkidle' });
@@ -150,13 +198,25 @@ await step('统计页渲染', async () => {
   await page.getByText('题型正确率').waitFor({ timeout: 3000 });
   await page.getByText('Router 达线率').waitFor({ timeout: 3000 });
 });
-await page.screenshot({ path: `${SHOTS}/09-stats.png`, fullPage: true });
+await page.screenshot({ path: `${SHOTS}/11-stats.png`, fullPage: true });
 
 console.log('— 仪表盘（有数据）—');
 await page.goto(`${BASE}/#/`, { waitUntil: 'networkidle' });
 await step('薄弱题型排行出现', () => page.getByText('薄弱题型').waitFor({ timeout: 3000 }));
 await step('备份提醒出现（从没导出过）', () => page.getByText(/还没备份过/).waitFor({ timeout: 3000 }));
-await page.screenshot({ path: `${SHOTS}/10-dashboard-full.png`, fullPage: true });
+await step('Router 达线率 = 50%（听力达线 + 阅读未达线）', async () => {
+  // 必须限定在这张卡片里取值：薄弱题型里也有个 50%（听力学术讲座 3/6），
+  // 直接 getByText('50%') 会撞上它。
+  const tile = page.locator('div.card').filter({ hasText: 'Router 达线率' }).first();
+  const text = await tile.innerText();
+  if (!text.includes('50%')) throw new Error(`Router 达线率应为 50%，卡片内容：${text.replace(/\n/g, ' | ')}`);
+  if (!text.includes('1/2')) throw new Error(`应显示 1/2 次，卡片内容：${text.replace(/\n/g, ' | ')}`);
+});
+await step('阅读的题型进入薄弱题型排行', async () => {
+  const bars = page.locator('section').filter({ has: page.locator('h2', { hasText: '薄弱题型' }) });
+  await bars.getByText('词汇填空').waitFor({ timeout: 3000 });
+});
+await page.screenshot({ path: `${SHOTS}/12-dashboard-full.png`, fullPage: true });
 
 console.log('— 导出导入往返 —');
 await page.goto(`${BASE}/#/settings`, { waitUntil: 'networkidle' });
@@ -169,7 +229,7 @@ await step('导出 JSON 备份', async () => {
   exported = `${SHOTS}/../backup.json`;
   await download.saveAs(exported);
   const parsed = JSON.parse(await fs.readFile(exported, 'utf8'));
-  if (parsed.sessions.length !== 3) throw new Error(`备份里应有 3 次练习，实际 ${parsed.sessions.length}`);
+  if (parsed.sessions.length !== 4) throw new Error(`备份里应有 4 次练习，实际 ${parsed.sessions.length}`);
   if (parsed.notes.length !== 1) throw new Error(`备份里应有 1 条笔记，实际 ${parsed.notes.length}`);
   if (parsed.vocab.length !== 1) throw new Error(`备份里应有 1 个生词，实际 ${parsed.vocab.length}`);
 });
@@ -192,19 +252,19 @@ await step('切浅色', async () => {
   await page.waitForFunction(() => !document.documentElement.classList.contains('dark'), { timeout: 3000 });
 });
 await page.goto(`${BASE}/#/`, { waitUntil: 'networkidle' });
-await page.screenshot({ path: `${SHOTS}/11-light-mode.png`, fullPage: true });
+await page.screenshot({ path: `${SHOTS}/13-light-mode.png`, fullPage: true });
 
 console.log('— 手机视口 —');
 const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
 await mobile.goto(`${BASE}/#/listening/new`, { waitUntil: 'networkidle' });
 await mobile.waitForTimeout(500);
-await mobile.screenshot({ path: `${SHOTS}/12-mobile-form.png`, fullPage: true });
+await mobile.screenshot({ path: `${SHOTS}/14-mobile-form.png`, fullPage: true });
 await step('手机端没有横向溢出', async () => {
   const overflow = await mobile.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   if (overflow) throw new Error('页面出现横向滚动');
 });
 await mobile.goto(`${BASE}/#/`, { waitUntil: 'networkidle' });
-await mobile.screenshot({ path: `${SHOTS}/13-mobile-dashboard.png`, fullPage: true });
+await mobile.screenshot({ path: `${SHOTS}/15-mobile-dashboard.png`, fullPage: true });
 
 await browser.close();
 
