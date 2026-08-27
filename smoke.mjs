@@ -52,9 +52,12 @@ await step('Router 压线提示：答对 14 题正好过 70%', () =>
   page.getByText(/过了 70% 分流线/).first().waitFor({ timeout: 3000 }));
 await page.screenshot({ path: `${SHOTS}/02-listening-form.png`, fullPage: true });
 
-await step('切到 Lower 后讲座被禁用', async () => {
+await step('切到 Lower 后讲座那一栏整个消失', async () => {
   await page.getByRole('button', { name: /^Lower/ }).first().click();
-  await page.getByText('Lower 模块没有这个题型').first().waitFor({ timeout: 3000 });
+  const lower = page.locator('section').filter({ has: page.locator('h2', { hasText: 'Lower' }) }).first();
+  await lower.getByText('选回应').first().waitFor({ timeout: 3000 });
+  const n = await lower.locator('div.rounded-lg').filter({ hasText: '讲座' }).count();
+  if (n !== 0) throw new Error(`Lower 不该出现讲座，实际有 ${n} 栏`);
 });
 await page.screenshot({ path: `${SHOTS}/03-lower-disabled.png`, fullPage: true });
 
@@ -66,9 +69,14 @@ await step('切回 Upper 后 Router 已填的错题数没被清掉', async () =>
   if (v !== '2') throw new Error(`Router 选回应错题数应为 2，实际 ${v}`);
 });
 
-await step('Upper 里通知被禁用（只有 Lower 和 Router 有通知）', async () => {
+await step('Upper 里通知那一栏整个消失（只有 Router 和 Lower 有通知）', async () => {
   const upper = page.locator('section').filter({ has: page.locator('h2', { hasText: 'Upper' }) }).first();
-  await upper.getByText('Upper 模块没有这个题型').first().waitFor({ timeout: 3000 });
+  await upper.getByText('选回应').first().waitFor({ timeout: 3000 });
+  const n = await upper.locator('div.rounded-lg').filter({ hasText: '通知' }).count();
+  if (n !== 0) throw new Error(`Upper 不该出现通知，实际有 ${n} 栏`);
+  // Upper 应该正好剩三栏：选回应、对话、讲座
+  const rows = await upper.locator('div.rounded-lg').filter({ hasText: /题$|错题数/ }).count();
+  if (rows !== 3) throw new Error(`Upper 应有 3 个题型，实际 ${rows}`);
 });
 
 // Upper 固定 15 题（选回应 3 + 对话 4 + 讲座 8），错 3 → 12/15。
@@ -109,13 +117,11 @@ await step('选 Lower 路径', async () => {
   await page.getByPlaceholder(/官方模考/).fill('官方模考 3');
   await page.getByRole('button', { name: /^Lower/ }).first().click();
 });
-await step('Lower 下学术长文被禁用（长文只进 Router 和 Upper）', async () => {
+await step('Lower 下学术长文那一栏整个消失，只剩词汇和短篇', async () => {
   const lower = page.locator('section').filter({ has: page.locator('h2', { hasText: 'Lower' }) }).first();
-  const box = lower.locator('div.rounded-lg').filter({ hasText: '学术长文' }).first();
-  await box.getByText('Lower 模块没有这个题型').waitFor({ timeout: 3000 });
-});
-await step('Lower 下词汇和短篇仍可用', async () => {
-  const lower = page.locator('section').filter({ has: page.locator('h2', { hasText: 'Lower' }) }).first();
+  await lower.getByText('词汇填空').first().waitFor({ timeout: 3000 });
+  const n = await lower.locator('div.rounded-lg').filter({ hasText: '学术长文' }).count();
+  if (n !== 0) throw new Error(`Lower 不该出现学术长文，实际有 ${n} 栏`);
   for (const label of ['词汇填空', '短篇实用文本']) {
     const box = lower.locator('div.rounded-lg').filter({ hasText: label }).first();
     await box.getByRole('spinbutton', { name: /^错题数/ }).waitFor({ timeout: 3000 });
@@ -210,13 +216,57 @@ await step('保存写作练习', async () => {
 
 console.log('— 生词本 —');
 await page.goto(`${BASE}/#/vocab`, { waitUntil: 'networkidle' });
-await step('加生词并进入抽查模式', async () => {
+await step('加生词', async () => {
   await page.getByPlaceholder('单词').fill('mitigate');
-  await page.getByPlaceholder('释义').fill('减轻，缓和');
+  await page.getByPlaceholder('释义').fill('减轻，缓合');   // 故意打错，下一步改掉
   await page.getByRole('button', { name: '+ 加入生词本' }).click();
   await page.getByText('mitigate').waitFor({ timeout: 3000 });
+});
+await step('编辑生词：改掉打错的释义，不用删了重加', async () => {
+  await page.getByRole('button', { name: '编辑 mitigate' }).click();
+  const meaning = page.getByRole('textbox', { name: '编辑释义' });
+  await meaning.fill('减轻，缓和');
+  await page.getByRole('textbox', { name: '编辑例句' }).fill('measures to mitigate the damage');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await page.getByText('减轻，缓和').waitFor({ timeout: 3000 });
+  await page.getByText('measures to mitigate the damage').waitFor({ timeout: 3000 });
+  const stale = await page.getByText('减轻，缓合').count();
+  if (stale !== 0) throw new Error('旧释义还在，说明保存没生效');
+});
+await step('取消编辑不会改动数据', async () => {
+  await page.getByRole('button', { name: '编辑 mitigate' }).click();
+  await page.getByRole('textbox', { name: '编辑释义' }).fill('乱填的');
+  await page.getByRole('button', { name: '取消' }).click();
+  await page.getByText('减轻，缓和').waitFor({ timeout: 3000 });
+  if ((await page.getByText('乱填的').count()) !== 0) throw new Error('取消之后改动不该留下');
+});
+await step('进入抽查模式', async () => {
   await page.getByRole('button', { name: '抽查模式' }).click();
   await page.getByRole('button', { name: '点开看释义' }).waitFor({ timeout: 3000 });
+});
+
+console.log('— 句型库 —');
+await page.goto(`${BASE}/#/phrases`, { waitUntil: 'networkidle' });
+await step('加一条语法点', async () => {
+  await page.getByPlaceholder(/新的语法点/).fill('not only ... but also ...');
+  await page.getByRole('button', { name: /加进语法点/ }).click();
+  await page.getByText('not only ... but also ...').waitFor({ timeout: 3000 });
+});
+await step('编辑句型并改分类，条目会移到新分组', async () => {
+  await page.getByRole('button', { name: '编辑这条' }).first().click();
+  // 顶部的分类筛选和编辑框里的分类按钮同名，必须限定在编辑卡片内点
+  const editCard = page.locator('li').filter({ has: page.getByRole('textbox', { name: '编辑句型' }) }).first();
+  await editCard.getByRole('textbox', { name: '编辑用法' }).fill('并列强调，谓语跟 also 后面的主语一致');
+  await editCard.getByRole('button', { name: '写作句型' }).click();
+  await editCard.getByRole('button', { name: '保存', exact: true }).click();
+  // 改成写作句型后，当前还停在语法点分组，所以这条应该消失了
+  await page.waitForTimeout(300);
+  if ((await page.getByText('not only ... but also ...').count()) !== 0) {
+    throw new Error('改了分类后不该还留在语法点分组里');
+  }
+  await page.getByRole('button', { name: /^写作句型/ }).click();
+  await page.getByText('not only ... but also ...').waitFor({ timeout: 3000 });
+  await page.getByText('并列强调，谓语跟 also 后面的主语一致').waitFor({ timeout: 3000 });
 });
 await page.screenshot({ path: `${SHOTS}/10-vocab.png`, fullPage: true });
 
@@ -265,6 +315,9 @@ await step('导出 JSON 备份', async () => {
   if (parsed.sessions.length !== 4) throw new Error(`备份里应有 4 次练习，实际 ${parsed.sessions.length}`);
   if (parsed.notes.length !== 1) throw new Error(`备份里应有 1 条笔记，实际 ${parsed.notes.length}`);
   if (parsed.vocab.length !== 1) throw new Error(`备份里应有 1 个生词，实际 ${parsed.vocab.length}`);
+  if (parsed.phrases.length !== 1) throw new Error(`备份里应有 1 条句型，实际 ${parsed.phrases.length}`);
+  if (parsed.vocab[0].meaning !== '减轻，缓和') throw new Error(`备份里的释义应是编辑后的，实际 ${parsed.vocab[0].meaning}`);
+  if (parsed.phrases[0].category !== 'writing') throw new Error(`备份里的句型分类应是编辑后的 writing，实际 ${parsed.phrases[0].category}`);
 });
 await step('清空数据', async () => {
   await page.getByRole('button', { name: '清空所有数据' }).click();

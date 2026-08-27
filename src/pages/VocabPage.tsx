@@ -158,6 +158,7 @@ export function VocabPage() {
                 revealed={revealed.has(entry.id)}
                 onReveal={() => setRevealed(new Set(revealed).add(entry.id))}
                 onSetFamiliarity={(familiarity) => updateVocab(entry.id, { familiarity })}
+                onSave={(patch) => updateVocab(entry.id, patch)}
                 onRemove={() => removeVocab(entry.id)}
               />
             ))}
@@ -174,6 +175,7 @@ function VocabCard({
   revealed,
   onReveal,
   onSetFamiliarity,
+  onSave,
   onRemove,
 }: {
   entry: VocabEntry;
@@ -181,9 +183,79 @@ function VocabCard({
   revealed: boolean;
   onReveal: () => void;
   onSetFamiliarity: (f: Familiarity) => void;
+  onSave: (patch: Partial<VocabEntry>) => void;
   onRemove: () => void;
 }) {
-  const hidden = quizMode && !revealed;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(entry);
+
+  const hidden = quizMode && !revealed && !editing;
+
+  const startEdit = () => {
+    setDraft(entry);   // 每次进编辑都从当前值开始，免得留着上次取消掉的改动
+    setEditing(true);
+  };
+
+  const save = () => {
+    if (!draft.word.trim()) return;
+    onSave({
+      word: draft.word.trim(),
+      meaning: draft.meaning.trim(),
+      example: draft.example?.trim() || undefined,
+      source: draft.source?.trim() || undefined,
+    });
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <li className="rounded-lg border border-slate-400 p-3 dark:border-slate-500">
+        <div className="space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              className="input"
+              placeholder="单词"
+              value={draft.word}
+              onChange={(e) => setDraft({ ...draft, word: e.target.value })}
+              aria-label="编辑单词"
+              autoFocus
+            />
+            <input
+              className="input"
+              placeholder="释义"
+              value={draft.meaning}
+              onChange={(e) => setDraft({ ...draft, meaning: e.target.value })}
+              aria-label="编辑释义"
+            />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              className="input"
+              placeholder="例句（选填）"
+              value={draft.example ?? ''}
+              onChange={(e) => setDraft({ ...draft, example: e.target.value })}
+              aria-label="编辑例句"
+            />
+            <input
+              className="input"
+              placeholder="来源（选填）"
+              value={draft.source ?? ''}
+              onChange={(e) => setDraft({ ...draft, source: e.target.value })}
+              aria-label="编辑来源"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className="btn-primary flex-1" onClick={save} disabled={!draft.word.trim()}>
+              保存
+            </button>
+            <button type="button" className="btn-ghost" onClick={() => setEditing(false)}>
+              取消
+            </button>
+          </div>
+        </div>
+      </li>
+    );
+  }
 
   return (
     <li className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
@@ -210,14 +282,24 @@ function VocabCard({
             <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">来自 {entry.source}</p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={`删除 ${entry.word}`}
-          className="shrink-0 text-xs text-slate-400 transition hover:text-red-600 dark:hover:text-red-400"
-        >
-          ×
-        </button>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={startEdit}
+            aria-label={`编辑 ${entry.word}`}
+            className="text-xs text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200"
+          >
+            编辑
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={`删除 ${entry.word}`}
+            className="text-xs text-slate-400 transition hover:text-red-600 dark:hover:text-red-400"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       <div className="mt-2 flex gap-1">
