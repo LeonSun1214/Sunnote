@@ -150,6 +150,12 @@ function SessionFormInner({ config, sessionId }: { config: SubjectConfig; sessio
           <span className={cx('ml-1.5', style.text)}>{config.label}</span>练习
         </h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{config.blurb}</p>
+        {!isEdit && (
+          <p className="mt-2 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600 dark:bg-slate-900 dark:text-slate-400">
+            题数是固定的，所以只填错了几个。<span className="font-medium">默认按全错算</span> —— 这样漏填哪一块会立刻变成刺眼的低分，
+            而不是悄悄算成满分。
+          </p>
+        )}
       </header>
 
       <div className="card grid gap-3 sm:grid-cols-2">
