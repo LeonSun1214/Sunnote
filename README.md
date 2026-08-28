@@ -1,103 +1,78 @@
 # Sunnote
 
-自用的托福备考笔记。按**新版 2026 自适应格式**建模，四科各有贴合真实考试结构的录入界面：填错题数自动算正确率，每科都有错题笔记区，外加生词本和句型库。
+托福备考笔记。按**新版 2026 自适应格式**建模——录完一套题只填「错了几个」，正确率、薄弱题型、分流达线率自动算出来。
 
-数据存在浏览器本地（localStorage），不上传任何服务器。
+**👉 [打开使用](https://leonsun1214.github.io/Sunnote/)** · 免费 · 无需注册 · 数据只存在你自己的浏览器里
 
-## 为什么是这个结构
+![Sunnote 仪表盘](docs/screenshot.png)
 
-新版托福四科的真实结构决定了这个应用长什么样：
+## 它解决什么问题
 
-| 科目 | 结构 | 客观题（数对错） | 主观题 |
-| --- | --- | --- | --- |
-| 听力 | Router **20 题** → Upper **15 题**（封顶 Band 6）或 Lower **15 题**（封顶 Band 4），必答共 35 题 | 全部，见下方题数表 | 无 |
-| 阅读 | 同为两段自适应：Router **20 题** → Upper / Lower **15 题**，必答共 35 题 | 全部，见下方题数表 | 无 |
-| 写作 | 约 23 分钟，三个题型顺序固定 | Build a Sentence（10 题语法，6 分钟） | Write an Email（7 分钟，130–140 词）、Academic Discussion（10 分钟，100–130 词） |
-| 口语 | 约 8 分钟 | Listen and Repeat（7 句跟读） | Take an Interview（4 题 × 45 秒，无准备时间） |
+刷完一套题，你知道自己错了几个，但不知道**错在哪类题上**。一个月后想不起来上次讲座题是不是也这么差。
 
-全部按 Band 1–6 计分。**加试题不计分，所以不录入**。
+Sunnote 让你花一分钟录完一套题，然后：
 
-### 题数是固定的，所以只填错题数
+- 每个题型的正确率横着排开，**最弱的排最上面**
+- 盯住 **Router 达线率**——新版考试里 Router 答对不到 14/20 就进不了 Upper，分数直接封顶 Band 4。这条线比总正确率更要紧
+- 错题笔记按科目归档，做题时随手记，复习时搜得到
 
-每个题型在每个模块下有几题是定死的，写在 `src/config/subjects/` 里，录入时只填错了几个：
+## 四科都按真实考试结构录入
 
-| 听力 | Router 20 | Upper 15 | Lower 15 |     | 阅读 | Router 20 | Upper 15 | Lower 15 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Choose a Response | 8 | 3 | 7 |  | Vocabulary | 10 | 10 | 10 |
-| Conversation | 4 | 4 | 4 |  | Short Texts | 5 | — | 5 |
-| Announcement | 4 | — | 4 |  | Academic Passages | 5 | 5 | — |
-| Lecture | 4 | 8 | — |  |  |  |  |  |
+**听力 / 阅读**：Router 20 题定分流 → 进 Upper 或 Lower 各 15 题。选好走向后，那个模块没有的题型会自动隐藏。
 
-两科同一个规律：**Upper 砍掉偏日常的那类**（Announcement / Short Texts），**Lower 砍掉偏学术的那类**（Lecture / Academic Passages）。选到某条路径时，界面会自动禁用那个模块没有的题型并说明原因。
+| 听力题型 | Router | Upper | Lower |
+| --- | :-: | :-: | :-: |
+| Choose a Response | 8 | 3 | 7 |
+| Conversation | 4 | 4 | 4 |
+| Announcement | 4 | — | 4 |
+| Lecture | 4 | 8 | — |
 
-单测会校验每一列的题数之和等于该模块的必答题数 —— 配置写错一个数字，正确率会一直算错且不报错，所以这层检查比看起来重要。
+| 阅读题型 | Router | Upper | Lower |
+| --- | :-: | :-: | :-: |
+| Vocabulary | 10 | 10 | 10 |
+| Short Texts | 5 | — | 5 |
+| Academic Passages | 5 | 5 | — |
 
-关键指标是 **Router 达线率**：Router 答对约 14/20（70%）以上才能进 Upper，进不去分数就封顶 Band 4。这条线比总正确率更要紧，所以仪表盘和每科统计页都单独盯它。
+题数是固定的，所以**只填错了几个**。没填的按全错算——这样漏填哪一块会立刻变成刺眼的低分，而不是悄悄算成满分。
 
-> 70% 这个门槛 ETS 没有公开，是实例观察值。要调就改 `src/config/subjects/{listening,reading}.ts` 里的 `routingThreshold`，一行的事。
+**写作**：Build a Sentence 数对错；Email 和学术讨论按自评分记录，答案框实时数词并对照目标区间（130–140 / 100–130 词）。
 
-## 功能
+**口语**：Listen and Repeat 七句逐句点；Take an Interview 四题各带 45 秒倒计时和转写框。
 
-- **四科定制录入**：听力/阅读走 Router → Upper/Lower 的模块流程，题数固定所以只填错题数，该模块没有的题型自动禁用；写作有字数计数器和目标区间校验；口语的 7 句跟读是逐句打点，采访题带 45 秒倒计时
-- **正确率**：按题组、模块、整套三层实时计算，没有数据时显示「—」而不是 0%
-- **错题笔记**：每科独立，Markdown 正文 + 标签 + 搜索。从练习详情点某个错的题组就能记，科目、题型、来源套题自动带上
-- **生词本**：熟练度四档、搜索、随机抽查（遮住释义）、可编辑
-- **句型库**：语法点 / 连接词 / 写作句型 / 口语句型分类，可编辑（改分类会移到对应分组）
-- **统计**：正确率走势、题型排行（弱的在上）、分模块对比、常犯扣分点
-- **备份**：导出 / 导入 JSON（支持覆盖与合并），另可导出 Markdown 复习本；超过 7 天没备份会在仪表盘提醒
-- 深浅色主题、手机可用、装成 PWA 后能离线打开
+## 还有
 
-## 开发
+- **生词本**——熟练度四档、随机抽查（遮住释义自己先想）
+- **句型库**——语法点 / 连接词 / 写作句型 / 口语句型
+- **备份**——一键导出 JSON，也能导出 Markdown 复习本拿去打印
+- 深浅色主题，手机能用，装成 App 后离线也能打开
+
+## 你的数据在哪
+
+**只在你自己的浏览器里。** 没有服务器，没有账号，一次网络请求都不发。
+
+代价是：**清缓存、换浏览器、换设备都会丢**。所以：
+
+- 定期在设置页导出 JSON 备份
+- 超过 7 天没导出，仪表盘会提醒你
+- 换设备就把 JSON 导入过去，可以选覆盖或合并
+
+## 本地跑
 
 ```bash
 npm install
-npm run dev        # 本地开发
-npm test           # stats、storage、科目配置与表单初始化的单测
-npm run build      # 生产构建
-npm run e2e        # 端到端冒烟测试（需先跑起 dev server）
+npm run dev
 ```
 
-端到端用 Playwright 真开一个浏览器把应用点一遍。首次要先装浏览器：
+其他命令：
 
 ```bash
-npx playwright install chromium
-npm run dev &
-npm run e2e
+npm test           # 单元测试
+npm run build      # 生产构建
+npm run e2e        # 端到端测试（需先起 dev server 和 npx playwright install chromium）
 ```
 
-三个可选环境变量：
+推到 `main` 会自动构建并发布到 GitHub Pages。
 
-| 变量 | 默认 | 用途 |
-| --- | --- | --- |
-| `BASE_URL` | `http://127.0.0.1:5173` | 测哪个地址 |
-| `SHOTS` | `./shots` | 截图往哪儿放 |
-| `PLAYWRIGHT_EXECUTABLE_PATH` | 空（用 Playwright 自己装的） | 指向预装的 Chromium，给那些禁止下载浏览器的环境用 |
+## 关于 70% 这条线
 
-CI 里单测和端到端是两个独立的 job：单测保证算得对，端到端保证点得通。端到端挂了会把截图作为 artifact 传上去，那是唯一能看出「当时屏幕上是什么」的东西。
-
-## 部署
-
-推到 `main` 会由 GitHub Actions 构建并发布到 GitHub Pages（`.github/workflows/deploy.yml`）。仓库的 Settings → Pages 里把 Source 设成 “GitHub Actions” 即可。
-
-生产构建的 `base` 是 `/Sunnote/`；换仓库名要同步改 `vite.config.ts`。
-
-## 代码结构
-
-```
-src/
-  types/            全部类型定义
-  config/subjects/  四科配置 —— 题型、模块、题数、评分维度都在这里，是「定制化」的单一真相源
-  store/            localStorage 读写、版本迁移、React Context
-  utils/stats.ts    正确率与聚合的纯函数（有单测）
-  components/       通用录入与图表组件
-  pages/            页面
-```
-
-要加题型或改题数，只动 `src/config/subjects/` 下对应的文件，UI 会跟着变，不用改组件代码。每个客观题型的 `items` 映射同时表达了「各模块下有几题」和「哪些模块有这个题型」——不在表里就是没有。
-
-## 数据安全
-
-数据只存在浏览器的 localStorage 里。**清缓存、换浏览器、换设备都会丢**，所以：
-
-- 定期在设置页导出 JSON 备份
-- 导入时选「合并」能保留两边的记录（同一条以修改时间更新的为准），选「覆盖」会丢掉当前全部数据
+Router 进 Upper 的门槛 ETS 没有公开，70% 是根据实例观察的估值。想按自己的数据调整，改 `src/config/subjects/listening.ts` 和 `reading.ts` 里的 `routingThreshold`，一行的事。
