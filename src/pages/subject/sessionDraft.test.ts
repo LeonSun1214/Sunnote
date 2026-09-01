@@ -11,12 +11,10 @@ describe('新建练习的初始题组', () => {
     expect(blocks.get(blockKey('upper', 'academic_talks'))?.total).toBe(8);
   });
 
-  it('默认全错而不是全对', () => {
-    // 题数固定后，系统分不清「全对」和「忘了填」。默认全错的话漏填会立刻变成
-    // 刺眼的低分；默认全对则会悄悄虚高。两种默认都会错，但只有这个方向会自曝。
+  it('默认错题数是 0，直接敲数字覆盖', () => {
     const blocks = initialBlocks(listeningConfig, 'upper');
     for (const block of blocks.values()) {
-      expect(block.wrong, `${block.taskType} 的默认错题数`).toBe(block.total);
+      expect(block.wrong, `${block.taskType} 的默认错题数`).toBe(0);
     }
   });
 

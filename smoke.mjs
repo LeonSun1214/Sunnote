@@ -46,13 +46,16 @@ await page.screenshot({ path: `${SHOTS}/01-dashboard-empty.png` });
 console.log('— 听力录入 —');
 await page.goto(`${BASE}/#/listening/new`, { waitUntil: 'networkidle' });
 await step('听力表单打开', () => page.getByText('这次的模块走向').waitFor({ timeout: 5000 }));
-await step('刚打开时默认全错：总正确率 0%，Router 显示 0/20', async () => {
-  // 默认全对的话漏填会算成满分、悄悄虚高；默认全错则漏填立刻变低分，能自己暴露。
+await step('刚打开时错题数为空，Router 显示 20/20', async () => {
   const router = page.locator('section').filter({ has: page.locator('h2', { hasText: 'Router' }) }).first();
-  await router.getByText('0/20').waitFor({ timeout: 3000 });
+  await router.getByText('20/20').waitFor({ timeout: 3000 });
   const first = page.locator('div.rounded-lg').filter({ hasText: '选回应' }).first();
   const v = await first.getByRole('spinbutton', { name: /^错题数/ }).inputValue();
-  if (v !== '8') throw new Error(`选回应应默认全错 8，实际 ${v}`);
+  if (v !== '') throw new Error(`错题数框应该是空的，实际 "${v}"`);
+});
+await step('输入框没有加减按钮，直接敲数字', async () => {
+  const n = await page.getByRole('button', { name: /加一|减一/ }).count();
+  if (n !== 0) throw new Error(`不该还有加减按钮，实际有 ${n} 个`);
 });
 await step('填套题名', () => page.getByPlaceholder(/官方模考/).fill('官方模考 2'));
 
@@ -95,10 +98,8 @@ await step('Upper 里通知那一栏整个消失（只有 Router 和 Lower 有�
 });
 
 // Upper 固定 15 题（选回应 3 + 对话 4 + 讲座 8），错 3 → 12/15。
-// 默认全错，所以答对的那些也要显式填 0 —— 这正是「漏填会变低分」的机制。
+// 默认就是 0，答对的那些不用管，只填错了的。
 await step('填 Upper 错题数（共错 3）并保存', async () => {
-  await fillWrong('Upper', '选回应', 0);
-  await fillWrong('Upper', '对话', 0);
   await fillWrong('Upper', '讲座', 3);
   await page.getByRole('button', { name: '保存这次练习' }).click();
   await page.waitForURL(/#\/listening\/session\//, { timeout: 5000 });
@@ -205,11 +206,12 @@ await step('造句题固定 10 题，界面上没有总数输入', async () => {
   const totalInputs = await box.getByRole('spinbutton', { name: '题目总数' }).count();
   if (totalInputs !== 0) throw new Error('题数已固定，不该还有总数输入框');
 });
-await step('造句题默认全错（10/10），填 2 后变 8/10', async () => {
+await step('造句题默认 0 错（10/10），填 2 后变 8/10', async () => {
   const box = page.locator('div.rounded-lg').filter({ hasText: '造句' }).first();
   const input = box.getByRole('spinbutton', { name: /^错题数/ });
   const initial = await input.inputValue();
-  if (initial !== '10') throw new Error(`造句题应默认全错 10，实际 ${initial}`);
+  if (initial !== '') throw new Error(`造句题错题数框应该是空的，实际 "${initial}"`);
+  await box.getByText('100%').first().waitFor({ timeout: 3000 });
   await input.fill('2');
   await box.getByText('80%').waitFor({ timeout: 3000 });
 });

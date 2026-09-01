@@ -32,15 +32,8 @@ export function activeModules(config: SubjectConfig, path: AdaptivePath): Module
   return ['router', path];
 }
 
-/**
- * 新题组默认「全错」，而不是全对。
- *
- * 题数固定之后，系统没法区分「我全对」和「我忘了填」。默认全对的话，漏填一个
- * 模块会让总正确率虚高，错误伪装成好成绩；默认全错则漏填立刻变成刺眼的低分，
- * 一眼就能发现。两种默认都会错，但只有这个方向会自己暴露出来。
- */
 export function makeBlock(module: ModuleKind | null, taskType: string, total: number): ObjectiveBlock {
-  return { id: newId(), module, taskType, total, wrong: total };
+  return { id: newId(), module, taskType, total, wrong: 0 };
 }
 
 export function makeTask(taskType: string): SubjectiveTask {
