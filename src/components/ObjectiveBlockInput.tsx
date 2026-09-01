@@ -1,6 +1,6 @@
+import { useId } from 'react';
 import type { ObjectiveBlock, TaskTypeConfig } from '../types';
 import { AccuracyBadge } from './AccuracyBadge';
-import { NumberStepper } from './NumberStepper';
 import { accuracy } from '../utils/stats';
 import { cx } from '../utils/ui';
 
@@ -11,6 +11,7 @@ interface Props {
 }
 
 export function ObjectiveBlockInput({ config, block, onChange }: Props) {
+  const inputId = useId();
   const acc = accuracy(block.total, block.wrong);
   const wrongExceedsTotal = block.total > 0 && block.wrong > block.total;
 
@@ -35,15 +36,33 @@ export function ObjectiveBlockInput({ config, block, onChange }: Props) {
       {config.inputStyle === 'dots' ? (
         <DotRow total={block.total} wrong={block.wrong} onChange={(wrong) => onChange({ wrong })} />
       ) : (
-        // 题数由 config 固定，录入者只填错了几个
-        <NumberStepper
-          label={`错题数（共 ${block.total} 题）`}
-          value={block.wrong}
-          min={0}
-          max={Math.max(block.total, 0)}
-          error={wrongExceedsTotal ? `错题数不能超过 ${block.total}` : undefined}
-          onChange={(wrong) => onChange({ wrong })}
-        />
+        // 题数由 config 固定，录入者只填错了几个，直接敲数字
+        <div>
+          <label className="label" htmlFor={inputId}>
+            错题数
+          </label>
+          <input
+            id={inputId}
+            type="number"
+            inputMode="numeric"
+            className={cx('input tabular-nums', wrongExceedsTotal && 'border-red-400 dark:border-red-600')}
+            value={block.wrong === 0 ? '' : block.wrong}
+            min={0}
+            max={Math.max(block.total, 0)}
+            placeholder="0"
+            aria-label={`错题数，共 ${block.total} 题`}
+            onChange={(e) => {
+              const raw = e.target.value;
+              // 清空当成 0，不然删到空的时候会变 NaN
+              if (raw === '') return onChange({ wrong: 0 });
+              const n = Number(raw);
+              if (Number.isFinite(n)) onChange({ wrong: Math.max(0, Math.round(n)) });
+            }}
+          />
+          {wrongExceedsTotal && (
+            <p className="mt-1 text-xs text-red-600 dark:text-red-400">这个题型只有 {block.total} 题</p>
+          )}
+        </div>
       )}
     </div>
   );
