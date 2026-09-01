@@ -11,6 +11,7 @@ import {
   routerStat,
   sessionAccuracy,
   sessionsBySubject,
+  sortChronologically,
   studyStreak,
   weakestTaskTypes,
 } from '../utils/stats';
@@ -105,8 +106,7 @@ export function Dashboard() {
         <div className="grid gap-3 sm:grid-cols-2">
           {SUBJECT_LIST.map((config) => {
             const subjectSessions = sessionsBySubject(sessions, config.key);
-            const accs = [...subjectSessions]
-              .reverse()
+            const accs = sortChronologically(subjectSessions)
               .map(sessionAccuracy)
               .filter((a): a is number => a !== null);
             const latest = subjectSessions[0];

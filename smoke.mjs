@@ -99,11 +99,22 @@ await step('Upper 里通知那一栏整个消失（只有 Router 和 Lower 有�
 
 // Upper 固定 15 题（选回应 3 + 对话 4 + 讲座 8），错 3 → 12/15。
 // 默认就是 0，答对的那些不用管，只填错了的。
-await step('填 Upper 错题数（共错 3）并保存', async () => {
+await step('Band 可以选半档（1 到 6 共 11 个）', async () => {
+  const band = page.locator('div').filter({ hasText: /^Band 得分/ }).last();
+  for (const v of ['1', '5.5', '6']) {
+    await band.getByRole('button', { name: v, exact: true }).waitFor({ timeout: 3000 });
+  }
+  const n = await band.getByRole('button').count();
+  if (n !== 11) throw new Error(`Band 应有 11 个选项（含半档），实际 ${n}`);
+});
+await step('填 Upper 错题数（共错 3）、选 Band 5.5 并保存', async () => {
   await fillWrong('Upper', '讲座', 3);
+  await page.getByRole('button', { name: '5.5', exact: true }).click();
   await page.getByRole('button', { name: '保存这次练习' }).click();
   await page.waitForURL(/#\/listening\/session\//, { timeout: 5000 });
 });
+await step('详情页显示 Band 5.5', () =>
+  page.getByText('Band 5.5').waitFor({ timeout: 3000 }));
 await step('详情页总正确率 = 26/35 = 74%', () =>
   page.getByText('74%').first().waitFor({ timeout: 3000 }));
 await page.screenshot({ path: `${SHOTS}/04-session-detail.png`, fullPage: true });
@@ -287,6 +298,28 @@ await step('编辑句型并改分类，条目会移到新分组', async () => {
 });
 await page.screenshot({ path: `${SHOTS}/10-vocab.png`, fullPage: true });
 
+console.log('— 同一天两套：折线图左右顺序 —');
+// 折线图原来只按日期排，同一天的两条比较结果为 0，稳定排序保留了输入顺序，
+// 而输入是降序的，于是同一天的点在图上左右颠倒。
+await page.goto(`${BASE}/#/listening/new`, { waitUntil: 'networkidle' });
+await step('同一天再录一套听力（错得更多）', async () => {
+  await page.getByPlaceholder(/官方模考/).fill('官方模考 3');
+  await fillWrong('Router', '选回应', 6);
+  await page.getByRole('button', { name: '保存这次练习' }).click();
+  await page.waitForURL(/#\/listening\/session\//, { timeout: 5000 });
+});
+await step('折线图上先录的在左、后录的在右', async () => {
+  await page.goto(`${BASE}/#/listening?tab=stats`, { waitUntil: 'networkidle' });
+  const svg = page.locator('svg[aria-label*="正确率走势"]').first();
+  await svg.waitFor({ timeout: 3000 });
+  // 悬停最左边的点，tooltip 应该是先录的那套
+  const dots = svg.locator('rect[fill="transparent"]');
+  await dots.first().hover();
+  await page.getByText('官方模考 2').first().waitFor({ timeout: 3000 });
+  await dots.last().hover();
+  await page.getByText('官方模考 3').first().waitFor({ timeout: 3000 });
+});
+
 console.log('— 持久化 —');
 await page.goto(`${BASE}/#/listening`, { waitUntil: 'networkidle' });
 await page.reload({ waitUntil: 'networkidle' });
@@ -304,13 +337,13 @@ console.log('— 仪表盘（有数据）—');
 await page.goto(`${BASE}/#/`, { waitUntil: 'networkidle' });
 await step('薄弱题型排行出现', () => page.getByText('薄弱题型').waitFor({ timeout: 3000 }));
 await step('备份提醒出现（从没导出过）', () => page.getByText(/还没备份过/).waitFor({ timeout: 3000 }));
-await step('Router 达线率 = 50%（听力达线 + 阅读未达线）', async () => {
-  // 必须限定在这张卡片里取值：薄弱题型里也有个 50%（听力学术讲座 3/6），
-  // 直接 getByText('50%') 会撞上它。
+await step('Router 达线率 = 2/3（两套听力达线、阅读那套没达线）', async () => {
+  // 三次 Router：听力模考2 14/20 达线、阅读模考3 12/20 没达线、听力模考3 14/20 达线。
+  // 必须限定在这张卡片里取值 —— 页面别处也会出现同样的百分比数字。
   const tile = page.locator('div.card').filter({ hasText: 'Router 达线率' }).first();
   const text = await tile.innerText();
-  if (!text.includes('50%')) throw new Error(`Router 达线率应为 50%，卡片内容：${text.replace(/\n/g, ' | ')}`);
-  if (!text.includes('1/2')) throw new Error(`应显示 1/2 次，卡片内容：${text.replace(/\n/g, ' | ')}`);
+  if (!text.includes('67%')) throw new Error(`Router 达线率应为 67%，卡片内容：${text.replace(/\n/g, ' | ')}`);
+  if (!text.includes('2/3')) throw new Error(`应显示 2/3 次，卡片内容：${text.replace(/\n/g, ' | ')}`);
 });
 await step('阅读的题型进入薄弱题型排行', async () => {
   const bars = page.locator('section').filter({ has: page.locator('h2', { hasText: '薄弱题型' }) });
@@ -329,7 +362,8 @@ await step('导出 JSON 备份', async () => {
   exported = `${SHOTS}/backup.json`;
   await download.saveAs(exported);
   const parsed = JSON.parse(await fs.readFile(exported, 'utf8'));
-  if (parsed.sessions.length !== 4) throw new Error(`备份里应有 4 次练习，实际 ${parsed.sessions.length}`);
+  if (parsed.sessions.length !== 5) throw new Error(`备份里应有 5 次练习，实际 ${parsed.sessions.length}`);
+  if (!parsed.sessions.some((s) => s.band === 5.5)) throw new Error('备份里应存着 Band 5.5 这个半档分');
   if (parsed.notes.length !== 1) throw new Error(`备份里应有 1 条笔记，实际 ${parsed.notes.length}`);
   if (parsed.vocab.length !== 1) throw new Error(`备份里应有 1 个生词，实际 ${parsed.vocab.length}`);
   if (parsed.phrases.length !== 1) throw new Error(`备份里应有 1 条句型，实际 ${parsed.phrases.length}`);
