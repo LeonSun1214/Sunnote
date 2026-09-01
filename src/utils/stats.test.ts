@@ -7,7 +7,9 @@ import {
   itemsNeededToPass,
   moduleAccuracy,
   routerStat,
+  sortChronologically,
   studyStreak,
+  trend,
   weakestTaskTypes,
 } from './stats';
 
@@ -176,5 +178,73 @@ describe('studyStreak', () => {
   it('同一天多次练习只算一天', () => {
     const sessions = [session({ date: '2026-08-26' }), session({ date: '2026-08-26' })];
     expect(studyStreak(sessions, new Date('2026-08-26T12:00:00'))).toBe(1);
+  });
+});
+
+describe('sortChronologically', () => {
+  /**
+   * 关键在于用降序输入来测。列表页给折线图的就是降序数组（最新在前），
+   * 之前只按 date 排、同一天比较结果为 0，稳定排序保留了输入顺序，
+   * 于是同一天的点在图上左右颠倒。用正序输入测的话这个 bug 根本不会暴露。
+   */
+  const descending = [
+    session({ id: 'd2-late', date: '2026-08-27', createdAt: '2026-08-27T18:00:00.000Z' }),
+    session({ id: 'd2-early', date: '2026-08-27', createdAt: '2026-08-27T09:00:00.000Z' }),
+    session({ id: 'd1-late', date: '2026-08-26', createdAt: '2026-08-26T20:00:00.000Z' }),
+    session({ id: 'd1-early', date: '2026-08-26', createdAt: '2026-08-26T08:00:00.000Z' }),
+  ];
+
+  it('同一天的按创建时间从早到晚排，不受输入顺序影响', () => {
+    expect(sortChronologically(descending).map((s) => s.id)).toEqual([
+      'd1-early',
+      'd1-late',
+      'd2-early',
+      'd2-late',
+    ]);
+  });
+
+  it('已经是正序的输入原样不动', () => {
+    const ascending = [...descending].reverse();
+    expect(sortChronologically(ascending).map((s) => s.id)).toEqual([
+      'd1-early',
+      'd1-late',
+      'd2-early',
+      'd2-late',
+    ]);
+  });
+
+  it('不改动传进来的数组', () => {
+    const input = [...descending];
+    sortChronologically(input);
+    expect(input.map((s) => s.id)).toEqual(descending.map((s) => s.id));
+  });
+
+  it('日期优先于创建时间 —— 补录昨天的练习画在昨天那个位置', () => {
+    const backfilled = [
+      session({ id: '今天录的', date: '2026-08-27', createdAt: '2026-08-27T10:00:00.000Z' }),
+      session({ id: '今天补录昨天的', date: '2026-08-26', createdAt: '2026-08-27T11:00:00.000Z' }),
+    ];
+    expect(sortChronologically(backfilled).map((s) => s.id)).toEqual(['今天补录昨天的', '今天录的']);
+  });
+});
+
+describe('trend', () => {
+  it('折线图的点也是正序，同一天不颠倒', () => {
+    const descending = [
+      session({ setName: '第二套', date: '2026-08-27', createdAt: '2026-08-27T18:00:00.000Z' }),
+      session({ setName: '第一套', date: '2026-08-27', createdAt: '2026-08-27T09:00:00.000Z' }),
+    ];
+    expect(trend(descending).map((p) => p.setName)).toEqual(['第一套', '第二套']);
+  });
+
+  it('limit 取的是最近的几次，不是最早的', () => {
+    const sessions = ['2026-08-24', '2026-08-25', '2026-08-26'].map((date) =>
+      session({ setName: date, date, createdAt: `${date}T10:00:00.000Z` }),
+    );
+    expect(trend(sessions, 2).map((p) => p.setName)).toEqual(['2026-08-25', '2026-08-26']);
+  });
+
+  it('Band 半档原样带过去', () => {
+    expect(trend([session({ band: 5.5 })])[0].band).toBe(5.5);
   });
 });

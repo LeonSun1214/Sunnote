@@ -180,9 +180,22 @@ export interface TrendPoint {
   selfScore: number | null;
 }
 
+/**
+ * 按时间正序排列，日期相同时用创建时间兜底。
+ *
+ * 只按 date 排会出错：date 精确到天，同一天的两条比较结果是 0，JS 的稳定排序
+ * 就保留输入顺序。而列表页给过来的数组是降序的（最新在前），于是同一天的点
+ * 在图上会左右颠倒。加上 createdAt 这一层就跟输入顺序无关了。
+ */
+export function sortChronologically(sessions: Session[]): Session[] {
+  return [...sessions].sort(
+    (a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt),
+  );
+}
+
 /** 按时间正序的趋势点，供折线图使用。 */
 export function trend(sessions: Session[], limit?: number): TrendPoint[] {
-  const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
+  const sorted = sortChronologically(sessions);
   const sliced = limit != null ? sorted.slice(-limit) : sorted;
   return sliced.map((s) => ({
     date: s.date,

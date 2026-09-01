@@ -25,6 +25,9 @@ import { SUBJECT_STYLES, cx } from '../../utils/ui';
  * 表单里那些只在挂载时算一次的初始状态就会留着上一科的题组。
  * 用 key 把科目和记录 id 绑进组件身份，切换时强制重挂载。
  */
+/** Band 1–6，含半档。0.5 在二进制里是精确的，不会有浮点误差。 */
+const BAND_OPTIONS = Array.from({ length: 11 }, (_, i) => 1 + i * 0.5);
+
 export function SessionForm() {
   const config = useSubjectParam();
   const { sessionId } = useParams();
@@ -235,15 +238,15 @@ function SessionFormInner({ config, sessionId }: { config: SubjectConfig; sessio
 
         <div>
           <span className="label">Band 得分（实际或自评，可留空）</span>
-          <div className="flex gap-1.5">
-            {[1, 2, 3, 4, 5, 6].map((b) => (
+          <div className="flex flex-wrap gap-1.5">
+            {BAND_OPTIONS.map((b) => (
               <button
                 key={b}
                 type="button"
                 aria-pressed={band === b}
                 onClick={() => setBand(band === b ? undefined : b)}
                 className={cx(
-                  'h-9 flex-1 rounded-lg border text-sm font-medium tabular-nums transition',
+                  'h-9 min-w-[3rem] flex-1 rounded-lg border text-sm font-medium tabular-nums transition',
                   band === b
                     ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
                     : 'border-slate-300 hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-600',
