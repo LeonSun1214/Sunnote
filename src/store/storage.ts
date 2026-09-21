@@ -1,6 +1,9 @@
-import type { AppData } from '../types';
+import type { AppData, Session } from '../types';
 
 const STORAGE_KEY = 'sunnote:data';
+
+/** 给错误边界用：崩溃时要绕开应用状态直接读这个 key。 */
+export const RAW_STORAGE_KEY = STORAGE_KEY;
 
 /** 数据结构版本。改动 AppData 形状时 +1，并在 migrate 里补上迁移。 */
 export const DATA_VERSION = 2;
@@ -45,9 +48,25 @@ export function migrate(raw: unknown): AppData {
       ? items.map((item) => ({ ...item, subject: upgradeSubject(item?.subject) }) as T)
       : [];
 
+  /**
+   * 练习记录里的 blocks / tasks 必须是数组 —— 统计那边直接 .filter() 和
+   * .reduce()，不是数组就会抛，而这里没有错误边界之外的第二道防线，
+   * 抛了就是白屏，用户连导出按钮都够不到。
+   *
+   * 归一化放在这里而不是散落到 stats 里：migrate 是不可信数据进入系统的
+   * 边界，在边界上修一次比在每个消费点各防一次可靠。坏掉的那条记录会变成
+   * 空数组（界面上看得见、能改），原件则留在迁移前快照里。
+   */
+  const withArrays = (items: unknown): Session[] =>
+    withSubject<Session>(items).map((session) => ({
+      ...session,
+      blocks: Array.isArray(session.blocks) ? session.blocks : [],
+      tasks: Array.isArray(session.tasks) ? session.tasks : [],
+    }));
+
   return {
     version: DATA_VERSION,
-    sessions: withSubject(data.sessions),
+    sessions: withArrays(data.sessions),
     notes: withSubject(data.notes),
     vocab: Array.isArray(data.vocab) ? data.vocab : [],
     phrases: Array.isArray(data.phrases) ? data.phrases : [],
@@ -55,11 +74,116 @@ export function migrate(raw: unknown): AppData {
   };
 }
 
+/** 迁移前快照的 key 前缀，后面接源数据的版本号。 */
+export const SNAPSHOT_PREFIX = `${STORAGE_KEY}:before-v`;
+
+function isEmptyData(data: AppData): boolean {
+  return (
+    data.sessions.length === 0 &&
+    data.notes.length === 0 &&
+    data.vocab.length === 0 &&
+    data.phrases.length === 0
+  );
+}
+
+/**
+ * 原始数据里**看起来**有多少条记录 —— 不假设它是数组。
+ * 用来和迁移结果对账：原始有、迁移后没有，就说明被丢了。
+ */
+function rawRecordCount(parsed: unknown): number {
+  if (!parsed || typeof parsed !== 'object') return 0;
+  const obj = parsed as Record<string, unknown>;
+  let count = 0;
+  for (const key of ['sessions', 'notes', 'vocab', 'phrases']) {
+    const value = obj[key];
+    if (Array.isArray(value)) count += value.length;
+    else if (typeof value === 'string') count += value.length > 0 ? 1 : 0;
+    else if (value && typeof value === 'object') count += Object.keys(value).length;
+  }
+  return count;
+}
+
+/**
+ * 迁移前把原始串原封不动存一份。
+ *
+ * 为什么必须有：AppDataContext 注册了 beforeunload 冲刷，所以用户哪怕只是
+ * 打开再关掉页面，迁移后的数据就会覆盖掉同一个 key —— 原始数据没有退路。
+ * 快照是那个退路。
+ *
+ * key 里带源版本号，所以同一次升级只写一次，之后每次加载都不会覆盖掉最早
+ * 那份（真出问题时，最早那份才是完好的）。
+ *
+ * 两个触发条件：
+ * 1. 版本号对不上 —— 正常的升级路径
+ * 2. 原始数据里有记录、迁移完却一条不剩 —— migrate() 里 `Array.isArray(x) ? x : []`
+ *    这条分支会把畸形数据静默换成空数组，界面显示「还没录过」且不报错。
+ *    这是唯一真正会丢数据的机制，概率低但不可逆，所以单独兜一层。
+ */
+function snapshotBeforeMigrate(raw: string, parsed: unknown, migrated: AppData): void {
+  try {
+    const version = (parsed as { version?: unknown } | null)?.version;
+    const versionTag = typeof version === 'number' ? String(version) : 'unknown';
+
+    const outdated = version !== DATA_VERSION;
+    const silentlyEmptied = isEmptyData(migrated) && rawRecordCount(parsed) > 0;
+    if (!outdated && !silentlyEmptied) return;
+
+    const key = silentlyEmptied ? `${SNAPSHOT_PREFIX}${versionTag}-salvage` : `${SNAPSHOT_PREFIX}${versionTag}`;
+    // 已经有了就不动 —— 第一份才是完好的
+    if (localStorage.getItem(key) !== null) return;
+    localStorage.setItem(key, raw);
+  } catch {
+    /* 配额满或存储不可用时跳过。快照是保险，不能反过来挡住应用启动 */
+  }
+}
+
+/**
+ * 找出当前存着的迁移前快照。没有就返回 null。
+ *
+ * 可能同时存在多份（比如先升级留了 before-v1，后来又触发了 salvage）。
+ * 统一返回**版本号最小**那份 —— 越早的越接近原件。localStorage 的 key()
+ * 顺序没有标准保证，所以这里显式排序，不依赖遍历顺序。
+ */
+export function findSnapshot(): { key: string; raw: string } | null {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(SNAPSHOT_PREFIX)) keys.push(key);
+    }
+    keys.sort((a, b) => {
+      const num = (k: string) => {
+        const parsed = Number.parseInt(k.slice(SNAPSHOT_PREFIX.length), 10);
+        return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
+      };
+      return num(a) - num(b) || a.localeCompare(b);
+    });
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (raw) return { key, raw };
+    }
+  } catch {
+    /* 读不到就当没有 */
+  }
+  return null;
+}
+
+export function removeSnapshot(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* 删不掉也不影响使用 */
+  }
+}
+
 export function loadData(): AppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return emptyData();
-    return migrate(JSON.parse(raw));
+    const parsed = JSON.parse(raw);
+    const migrated = migrate(parsed);
+    snapshotBeforeMigrate(raw, parsed, migrated);
+    return migrated;
   } catch (error) {
     // 数据损坏时不要白屏。保留原始串到另一个 key，方便手动抢救。
     console.error('读取本地数据失败，已重置为空数据', error);

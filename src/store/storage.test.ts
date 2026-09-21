@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { applyImport, DATA_VERSION, emptyData, migrate } from './storage';
+import {
+  applyImport,
+  DATA_VERSION,
+  emptyData,
+  findSnapshot,
+  loadData,
+  migrate,
+  removeSnapshot,
+  SNAPSHOT_PREFIX,
+} from './storage';
 import type { AppData, Note } from '../types';
+import { sessionAccuracy } from '../utils/stats';
 
 function note(partial: Partial<Note>): Note {
   return {
@@ -118,5 +128,183 @@ describe('v1 → v2 迁移：subject 加考试前缀', () => {
     expect(out.sessions[0].setName).toBe('官方模考 2');
     expect(out.vocab[0].word).toBe('mitigate');
     expect(out.phrases[0].category).toBe('grammar');
+  });
+});
+
+/**
+ * localStorage 的最小替身。vitest 跑在 node 环境下没有这个全局对象，
+ * 但 storage.ts 里都是在函数内部引用它，所以测试前赋值就够，不用引 jsdom。
+ */
+function installLocalStorage(): Map<string, string> {
+  const store = new Map<string, string>();
+  const api = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
+    key: (i: number) => [...store.keys()][i] ?? null,
+    get length() {
+      return store.size;
+    },
+  };
+  Object.defineProperty(globalThis, 'localStorage', { value: api, configurable: true, writable: true });
+  return store;
+}
+
+describe('迁移前快照', () => {
+  /**
+   * 真正要防的事：AppDataContext 有 beforeunload 冲刷，用户打开再关掉页面，
+   * 迁移后的数据就覆盖了原始数据。快照是唯一的退路。
+   */
+  const v1Raw = JSON.stringify({
+    version: 1,
+    sessions: [
+      { id: 's1', subject: 'listening', setName: '官方模考 2', date: '2026-08-27', blocks: [], tasks: [] },
+      { id: 's2', subject: 'reading', setName: '官方模考 3', date: '2026-08-28', blocks: [], tasks: [] },
+    ],
+    notes: [{ id: 'n1', subject: 'writing', title: '连接词', body: '', tags: [] }],
+    vocab: [{ id: 'v1', word: 'mitigate', meaning: '减轻', familiarity: 0 }],
+    phrases: [],
+    settings: { theme: 'dark' },
+  });
+
+  it('v1 数据加载后留下逐字节相同的快照', () => {
+    const store = installLocalStorage();
+    store.set('sunnote:data', v1Raw);
+
+    const loaded = loadData();
+    expect(loaded.sessions.map((s) => s.subject)).toEqual(['toefl-listening', 'toefl-reading']);
+
+    const snapshot = findSnapshot();
+    expect(snapshot?.key).toBe(`${SNAPSHOT_PREFIX}1`);
+    // 逐字节相同 —— 快照的意义就是「原件」，被处理过就不是原件了
+    expect(snapshot?.raw).toBe(v1Raw);
+  });
+
+  it('后续加载不会覆盖掉最早那份快照', () => {
+    const store = installLocalStorage();
+    store.set('sunnote:data', v1Raw);
+    loadData();
+    expect(findSnapshot()?.raw).toBe(v1Raw);
+
+    // 之后主数据又被写坏了，但版本号还停在 v1，所以还会再次触发快照。
+    // 这时候绝不能覆盖 —— 第一份才是完好的，后写的这份已经缺了记录。
+    const damaged = JSON.stringify({ ...JSON.parse(v1Raw), sessions: [], notes: [] });
+    store.set('sunnote:data', damaged);
+    loadData();
+
+    expect(findSnapshot()?.raw).toBe(v1Raw);
+  });
+
+  it('已经写回 v2 之后再加载，不会拿迁移后的数据盖掉快照', () => {
+    const store = installLocalStorage();
+    store.set('sunnote:data', v1Raw);
+    loadData();
+
+    // 模拟 beforeunload 把 v2 写了回去，然后用户再打开一次
+    store.set('sunnote:data', JSON.stringify(migrate(JSON.parse(v1Raw))));
+    loadData();
+
+    expect(findSnapshot()?.raw).toBe(v1Raw);
+  });
+
+  it('同时存在多份快照时，返回版本号最小的那份', () => {
+    const store = installLocalStorage();
+    store.set(`${SNAPSHOT_PREFIX}2-salvage`, '{"version":2,"sessions":[]}');
+    store.set(`${SNAPSHOT_PREFIX}1`, v1Raw);
+    // 插入顺序是 v2 在前，但该返回 v1 —— 越早的越接近原件
+    expect(findSnapshot()?.key).toBe(`${SNAPSHOT_PREFIX}1`);
+  });
+
+  it('已经是当前版本的数据不产生快照', () => {
+    const store = installLocalStorage();
+    store.set('sunnote:data', JSON.stringify({ ...emptyData(), sessions: [] }));
+    loadData();
+    expect(findSnapshot()).toBeNull();
+  });
+
+  it('sessions 不是数组时被静默清空 —— 这种也要留快照', () => {
+    const store = installLocalStorage();
+    // migrate 里 `Array.isArray(x) ? x : []` 会把它换成空数组且不报错。
+    // 界面只会显示「还没录过」，然后 beforeunload 把空状态写回去。
+    const malformed = JSON.stringify({
+      version: DATA_VERSION,
+      sessions: { '0': { id: 's1', subject: 'toefl-listening', setName: '官方模考 2' } },
+      notes: [],
+      vocab: [],
+      phrases: [],
+      settings: { theme: 'system', lastExportedAt: '2026-09-01T00:00:00.000Z' },
+    });
+    store.set('sunnote:data', malformed);
+
+    const loaded = loadData();
+    expect(loaded.sessions).toEqual([]); // 确认确实被清空了
+
+    const snapshot = findSnapshot();
+    expect(snapshot?.key).toBe(`${SNAPSHOT_PREFIX}${DATA_VERSION}-salvage`);
+    expect(snapshot?.raw).toBe(malformed);
+  });
+
+  it('本来就是空数据时不留 salvage 快照，不然每个新用户都背一份空备份', () => {
+    const store = installLocalStorage();
+    store.set('sunnote:data', JSON.stringify({ version: 1, sessions: [], notes: [], vocab: [], phrases: [] }));
+    loadData();
+    expect(findSnapshot()?.key).toBe(`${SNAPSHOT_PREFIX}1`); // 版本旧仍然留（走的是条件 1）
+
+    const store2 = installLocalStorage();
+    store2.set('sunnote:data', JSON.stringify({ version: DATA_VERSION, sessions: [], notes: [], vocab: [], phrases: [] }));
+    loadData();
+    expect(findSnapshot()).toBeNull(); // 版本对得上、原始数据本来就没记录 → 不留
+  });
+
+  it('快照能原样喂回 applyImport 还原数据', () => {
+    const store = installLocalStorage();
+    store.set('sunnote:data', v1Raw);
+    loadData();
+
+    const snapshot = findSnapshot()!;
+    const restored = applyImport(emptyData(), JSON.parse(snapshot.raw), 'replace');
+    expect(restored.sessions.map((s) => s.id)).toEqual(['s1', 's2']);
+    expect(restored.notes[0].title).toBe('连接词');
+    expect(restored.vocab[0].word).toBe('mitigate');
+    expect(restored.settings.theme).toBe('dark');
+  });
+
+  it('removeSnapshot 删掉之后 findSnapshot 就找不到了', () => {
+    const store = installLocalStorage();
+    store.set('sunnote:data', v1Raw);
+    loadData();
+    removeSnapshot(findSnapshot()!.key);
+    expect(findSnapshot()).toBeNull();
+  });
+});
+
+describe('练习记录里的数组字段归一化', () => {
+  // stats 那边直接 .filter() / .reduce()，不是数组就抛。这里没有第二道防线，
+  // 抛了就是白屏，用户连导出按钮都够不到 —— 所以在数据入口就修掉。
+  it('blocks / tasks 不是数组时换成空数组，而不是让统计崩掉', () => {
+    const out = migrate({
+      version: DATA_VERSION,
+      sessions: [
+        { id: 's1', subject: 'toefl-listening', setName: 'A', date: '2026-01-01', blocks: null, tasks: undefined },
+        { id: 's2', subject: 'toefl-reading', setName: 'B', date: '2026-01-02', blocks: 'oops', tasks: {} },
+      ],
+    });
+    for (const session of out.sessions) {
+      expect(Array.isArray(session.blocks)).toBe(true);
+      expect(Array.isArray(session.tasks)).toBe(true);
+    }
+    // 并且真的能喂给统计而不抛
+    expect(() => out.sessions.map(sessionAccuracy)).not.toThrow();
+    expect(out.sessions.map(sessionAccuracy)).toEqual([null, null]);
+  });
+
+  it('正常的 blocks / tasks 原样保留', () => {
+    const blocks = [{ module: 'router', taskType: 'vocabulary', total: 10, wrong: 3 }];
+    const out = migrate({
+      version: DATA_VERSION,
+      sessions: [{ id: 's1', subject: 'toefl-reading', setName: 'A', date: '2026-01-01', blocks, tasks: [] }],
+    });
+    expect(out.sessions[0].blocks).toEqual(blocks);
+    expect(sessionAccuracy(out.sessions[0])).toBeCloseTo(0.7);
   });
 });

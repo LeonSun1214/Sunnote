@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { ModuleKind } from '../../types';
-import { SUBJECT_LIST, SUBJECT_CONFIGS } from './index';
+import type { ModuleKind, Subject } from '../../types';
+import { SUBJECT_LIST, SUBJECT_CONFIGS, getTaskType, subjectFullLabel, taskTypeLabel } from './index';
+import { subjectStyle, subjectVar } from '../../utils/ui';
 
 /**
  * 题数现在写死在 config 里，录入界面直接用。写错一个数字，正确率就会一直算错，
@@ -125,5 +126,33 @@ describe('模块题数', () => {
       expect(byKey('lower'), `${key} Lower`).toBe(15);
       expect(byKey('router') + byKey('upper')).toBe(35);
     }
+  });
+});
+
+describe('配置里没有的 subject 不能让页面崩掉', () => {
+  // 类型上不可能，但运行时可能 —— localStorage 里是用户的历史数据，
+  // 可能来自更老的版本、手工改过、或者别的设备导入的。
+  // 崩了就是白屏，用户够不到设置页的导出按钮，数据从他视角就是「丢了」。
+  const ghost = 'toefl-nonexistent' as Subject;
+
+  it('subjectVar 退回听力的颜色变量', () => {
+    expect(() => subjectVar(ghost)).not.toThrow();
+    expect(subjectVar(ghost)).toBe('var(--subj-listening)');
+  });
+
+  it('subjectStyle 退回听力的样式', () => {
+    expect(() => subjectStyle(ghost)).not.toThrow();
+    expect(subjectStyle(ghost).text).toBe('text-subj-listening');
+  });
+
+  it('subjectFullLabel 退回原始键而不是抛', () => {
+    expect(() => subjectFullLabel(ghost)).not.toThrow();
+    expect(subjectFullLabel(ghost)).toBe('toefl-nonexistent');
+  });
+
+  it('getTaskType / taskTypeLabel 退回 undefined 和原始键', () => {
+    expect(() => getTaskType(ghost, 'router')).not.toThrow();
+    expect(getTaskType(ghost, 'router')).toBeUndefined();
+    expect(taskTypeLabel(ghost, 'router')).toBe('router');
   });
 });
