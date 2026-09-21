@@ -1,4 +1,4 @@
-import type { SubjectConfig } from '../../types';
+import type { SubjectConfig } from '../../../types';
 
 /**
  * 新版 2026 口语：约 8 分钟，11 题。
@@ -6,10 +6,14 @@ import type { SubjectConfig } from '../../types';
  * Take an Interview 4 题各 45 秒、无准备时间，用自评分记录。
  */
 export const speakingConfig: SubjectConfig = {
-  key: 'speaking',
+  key: 'toefl-speaking',
+  exam: 'toefl',
+  skill: 'speaking',
   label: '口语',
   labelEn: 'Speaking',
   adaptive: false,
+  // 托福 Band 1–6，半档
+  bandOptions: [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6],
   color: 'speaking',
   blurb: 'Listen and Repeat 7 句逐句打点算正确率；Take an Interview 4 题各 45 秒按维度自评。',
   taskTypes: [

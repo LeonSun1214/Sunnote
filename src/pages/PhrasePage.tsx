@@ -5,10 +5,10 @@ import { EmptyState } from '../components/EmptyState';
 import { cx } from '../utils/ui';
 
 const CATEGORIES: { key: PhraseCategory; label: string; hint: string }[] = [
-  { key: 'grammar', label: '语法点', hint: '对应写作的 Build a Sentence —— 那 10 道题考的就是语法结构。' },
+  { key: 'grammar', label: '语法点', hint: '托福写作的 Build a Sentence 直接考语法结构，雅思写作的 Grammatical Range 也看这个。' },
   { key: 'transition', label: '连接词', hint: '转折、递进、举例、总结，听力抓信号词也靠它。' },
-  { key: 'writing', label: '写作句型', hint: 'Email 的开头结尾、学术讨论里回应同学观点的说法。' },
-  { key: 'speaking', label: '口语句型', hint: 'Take an Interview 45 秒没准备时间，得有现成的起手句。' },
+  { key: 'writing', label: '写作句型', hint: '托福 Email 的开头结尾、学术讨论里回应同学观点；雅思 Task 1 描述趋势、Task 2 亮观点的说法。' },
+  { key: 'speaking', label: '口语句型', hint: '托福 Take an Interview 45 秒没准备时间，雅思 Part 2 只有 1 分钟 —— 都得有现成的起手句。' },
 ];
 
 export function PhrasePage() {

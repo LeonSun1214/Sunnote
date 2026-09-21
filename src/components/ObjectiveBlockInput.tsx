@@ -37,7 +37,31 @@ export function ObjectiveBlockInput({ config, block, onChange }: Props) {
         <DotRow total={block.total} wrong={block.wrong} onChange={(wrong) => onChange({ wrong })} />
       ) : (
         // 题数由 config 固定，录入者只填错了几个，直接敲数字
-        <div>
+        <div className={cx(config.editableTotal && 'grid grid-cols-2 gap-2')}>
+          {config.editableTotal && (
+            <div>
+              <label className="label" htmlFor={`${inputId}-total`}>
+                题数
+              </label>
+              <input
+                id={`${inputId}-total`}
+                type="number"
+                inputMode="numeric"
+                className="input tabular-nums"
+                value={block.total}
+                min={0}
+                aria-label="题目总数"
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isFinite(n)) return;
+                  const total = Math.max(0, Math.round(n));
+                  // 改小题数时把错题数一起压下来，否则会留下「错 14 / 共 10」
+                  onChange({ total, wrong: Math.min(block.wrong, total) });
+                }}
+              />
+            </div>
+          )}
+          <div>
           <label className="label" htmlFor={inputId}>
             错题数
           </label>
@@ -62,6 +86,7 @@ export function ObjectiveBlockInput({ config, block, onChange }: Props) {
           {wrongExceedsTotal && (
             <p className="mt-1 text-xs text-red-600 dark:text-red-400">这个题型只有 {block.total} 题</p>
           )}
+          </div>
         </div>
       )}
     </div>

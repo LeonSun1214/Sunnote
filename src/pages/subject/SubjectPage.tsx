@@ -7,7 +7,7 @@ import { AccuracyBadge } from '../../components/AccuracyBadge';
 import { EmptyState } from '../../components/EmptyState';
 import { blocksTotals, sessionAccuracy } from '../../utils/stats';
 import { formatDate } from '../../utils/date';
-import { SUBJECT_STYLES, cx } from '../../utils/ui';
+import { subjectStyle, cx } from '../../utils/ui';
 
 const TABS = [
   { key: 'sessions', label: '练习记录' },
@@ -21,14 +21,14 @@ export function SubjectPage() {
   const config = useSubjectParam();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const sessions = useSubjectSessions(config?.key ?? 'listening');
-  const notes = useSubjectNotes(config?.key ?? 'listening');
+  const sessions = useSubjectSessions(config?.key ?? 'toefl-listening');
+  const notes = useSubjectNotes(config?.key ?? 'toefl-listening');
 
   if (!config) return <Navigate to="/" replace />;
 
   const rawTab = searchParams.get('tab');
   const tab: TabKey = TABS.some((t) => t.key === rawTab) ? (rawTab as TabKey) : 'sessions';
-  const style = SUBJECT_STYLES[config.key];
+  const style = subjectStyle(config.key);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">

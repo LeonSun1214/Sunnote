@@ -15,7 +15,7 @@ import {
   rubricHitCounts,
   trend,
 } from '../../utils/stats';
-import { getTaskType } from '../../config/subjects';
+import { getTaskType } from '../../config/exams';
 
 export function StatsTab({ config, sessions }: { config: SubjectConfig; sessions: Session[] }) {
   const threshold = config.routingThreshold ?? 0.7;

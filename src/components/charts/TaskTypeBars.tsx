@@ -1,12 +1,12 @@
 import type { Subject } from '../../types';
 import type { TaskTypeStat } from '../../utils/stats';
 import { formatAccuracy } from '../../utils/stats';
-import { SUBJECT_CONFIGS, taskTypeLabel } from '../../config/subjects';
+import { SUBJECT_CONFIGS, subjectFullLabel, taskTypeLabel } from '../../config/exams';
 import { subjectVar, cx } from '../../utils/ui';
 
 interface Props {
   stats: TaskTypeStat[];
-  /** 跨科目排行时显示科目名，单科统计里则省略。 */
+  /** 跨科目排行时显示「托福听力」这样的全名，单科统计里则省略。 */
   showSubject?: boolean;
   emptyHint?: string;
 }
@@ -47,7 +47,7 @@ export function TaskTypeBars({ stats, showSubject = false, emptyHint }: Props) {
               <span className="min-w-0 truncate">
                 {showSubject && (
                   <span className="mr-1.5 text-slate-500 dark:text-slate-400">
-                    {SUBJECT_CONFIGS[stat.subject].label}
+                    {subjectFullLabel(stat.subject)}
                   </span>
                 )}
                 <span className="text-slate-700 dark:text-slate-200">
@@ -86,7 +86,7 @@ export function TaskTypeBars({ stats, showSubject = false, emptyHint }: Props) {
   );
 }
 
-/** 迷你走势线，用在四科概览卡上。单系列，卡片标题已经写明科目。 */
+/** 迷你走势线，用在科目概览卡上。单系列，卡片标题已经写明科目。 */
 export function Sparkline({ subject, values, className }: { subject: Subject; values: number[]; className?: string }) {
   if (values.length < 2) return null;
 

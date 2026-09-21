@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { listeningConfig } from '../../config/subjects/listening';
-import { readingConfig } from '../../config/subjects/reading';
-import { writingConfig } from '../../config/subjects/writing';
+import { listeningConfig } from '../../config/exams/toefl/listening';
+import { readingConfig } from '../../config/exams/toefl/reading';
+import { writingConfig } from '../../config/exams/toefl/writing';
 import { blockKey, initialBlocks, isTaskTypeAvailable, itemCount } from './sessionDraft';
 
 describe('新建练习的初始题组', () => {

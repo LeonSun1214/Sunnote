@@ -31,7 +31,13 @@ const step = async (name, fn) => {
   catch (e) { console.log(`  ✗ ${name}: ${e.message.split('\n')[0]}`); errors.push(`${name}: ${e.message.split('\n')[0]}`); }
 };
 
-/** 在某个模块区块里给某个题型填错题数。题数由 config 固定，界面上没有总数输入。 */
+/** 非自适应科目（雅思、托福写作口语）：所有题型在同一个卡片里，直接按标签找。 */
+const fillWrongByLabel = async (taskLabel, wrong) => {
+  const box = page.locator('div.rounded-lg').filter({ hasText: taskLabel }).first();
+  await box.getByRole('spinbutton', { name: /^错题数/ }).fill(String(wrong));
+};
+
+/** 自适应科目：先按模块 h2 定位 section，再在里面找题型。 */
 const fillWrong = async (sectionText, taskLabel, wrong) => {
   const section = page.locator('section').filter({ has: page.locator('h2', { hasText: sectionText }) }).first();
   const box = section.locator('div.rounded-lg').filter({ hasText: taskLabel }).first();
@@ -44,7 +50,7 @@ await step('仪表盘空状态渲染', () => page.getByText('从录第一次练�
 await page.screenshot({ path: `${SHOTS}/01-dashboard-empty.png` });
 
 console.log('— 听力录入 —');
-await page.goto(`${BASE}/#/listening/new`, { waitUntil: 'networkidle' });
+await page.goto(`${BASE}/#/toefl-listening/new`, { waitUntil: 'networkidle' });
 await step('听力表单打开', () => page.getByText('这次的模块走向').waitFor({ timeout: 5000 }));
 await step('刚打开时错题数为空，Router 显示 20/20', async () => {
   const router = page.locator('section').filter({ has: page.locator('h2', { hasText: 'Router' }) }).first();
@@ -111,7 +117,7 @@ await step('填 Upper 错题数（共错 3）、选 Band 5.5 并保存', async (
   await fillWrong('Upper', '讲座', 3);
   await page.getByRole('button', { name: '5.5', exact: true }).click();
   await page.getByRole('button', { name: '保存这次练习' }).click();
-  await page.waitForURL(/#\/listening\/session\//, { timeout: 5000 });
+  await page.waitForURL(/#\/toefl-listening\/session\//, { timeout: 5000 });
 });
 await step('详情页显示 Band 5.5', () =>
   page.getByText('Band 5.5').waitFor({ timeout: 3000 }));
@@ -122,7 +128,7 @@ await page.screenshot({ path: `${SHOTS}/04-session-detail.png`, fullPage: true }
 console.log('— 从错题跳去记笔记 —');
 await step('「记笔记」链接带上练习和题型上下文', async () => {
   await page.getByRole('link', { name: '记笔记' }).first().click();
-  await page.waitForURL(/#\/listening\/note\/new/, { timeout: 5000 });
+  await page.waitForURL(/#\/toefl-listening\/note\/new/, { timeout: 5000 });
   await page.getByText('来自 官方模考 2').waitFor({ timeout: 3000 });
 });
 await step('写笔记并保存', async () => {
@@ -138,7 +144,7 @@ await page.screenshot({ path: `${SHOTS}/05-notes.png`, fullPage: true });
 // 阅读走「考砸」那条路径：Router 未达线 → Lower。听力测的是达线 → Upper，
 // 所以未达线提示和 Lower 的完整保存至今没被跑到过。
 console.log('— 阅读：Router 未达线 → Lower —');
-await page.goto(`${BASE}/#/reading/new`, { waitUntil: 'networkidle' });
+await page.goto(`${BASE}/#/toefl-reading/new`, { waitUntil: 'networkidle' });
 await step('阅读表单打开', () => page.getByText('这次的模块走向').waitFor({ timeout: 5000 }));
 await step('选 Lower 路径', async () => {
   await page.getByPlaceholder(/官方模考/).fill('官方模考 3');
@@ -172,7 +178,7 @@ await step('填 Lower 错题数（共错 5）并保存', async () => {
   await fillWrong('Lower', '词汇填空', 3);
   await fillWrong('Lower', '短篇实用文本', 2);
   await page.getByRole('button', { name: '保存这次练习' }).click();
-  await page.waitForURL(/#\/reading\/session\//, { timeout: 5000 });
+  await page.waitForURL(/#\/toefl-reading\/session\//, { timeout: 5000 });
 });
 await step('详情页总正确率 = 22/35 = 63%', () =>
   page.getByText('63%').first().waitFor({ timeout: 3000 }));
@@ -183,13 +189,13 @@ await step('详情页 Router 区块显示没过分流线', () =>
 await page.screenshot({ path: `${SHOTS}/07-reading-detail.png`, fullPage: true });
 
 await step('统计页出现 Lower 模块', async () => {
-  await page.goto(`${BASE}/#/reading?tab=stats`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/#/toefl-reading?tab=stats`, { waitUntil: 'networkidle' });
   const modules = page.locator('section').filter({ has: page.locator('h2', { hasText: '分模块正确率' }) });
   await modules.getByText('Lower').waitFor({ timeout: 3000 });
 });
 
 console.log('— 口语跟读打点（切科目不该串数据）—');
-await page.goto(`${BASE}/#/speaking/new`, { waitUntil: 'networkidle' });
+await page.goto(`${BASE}/#/toefl-speaking/new`, { waitUntil: 'networkidle' });
 await step('跟读渲染出 7 个圆点', async () => {
   const n = await page.locator('button[aria-label^="第 "]').count();
   if (n !== 7) throw new Error(`应有 7 个圆点，实际 ${n}`);
@@ -206,11 +212,11 @@ await step('点第 2 个圆点 → 错 2 → 5/7 = 71%', async () => {
 await page.screenshot({ path: `${SHOTS}/08-speaking-dots.png`, fullPage: true });
 await step('保存口语练习', async () => {
   await page.getByRole('button', { name: '保存这次练习' }).click();
-  await page.waitForURL(/#\/speaking\/session\//, { timeout: 5000 });
+  await page.waitForURL(/#\/toefl-speaking\/session\//, { timeout: 5000 });
 });
 
 console.log('— 写作字数校验 —');
-await page.goto(`${BASE}/#/writing/new`, { waitUntil: 'networkidle' });
+await page.goto(`${BASE}/#/toefl-writing/new`, { waitUntil: 'networkidle' });
 await step('造句题固定 10 题，界面上没有总数输入', async () => {
   const box = page.locator('div.rounded-lg').filter({ hasText: '造句' }).first();
   await box.getByText('10 题').first().waitFor({ timeout: 3000 });
@@ -239,7 +245,7 @@ await step('给 Email 打个自评分再保存', async () => {
 await page.screenshot({ path: `${SHOTS}/09-writing-words.png`, fullPage: true });
 await step('保存写作练习', async () => {
   await page.getByRole('button', { name: '保存这次练习' }).click();
-  await page.waitForURL(/#\/writing\/session\//, { timeout: 5000 });
+  await page.waitForURL(/#\/toefl-writing\/session\//, { timeout: 5000 });
 });
 
 console.log('— 生词本 —');
@@ -301,15 +307,15 @@ await page.screenshot({ path: `${SHOTS}/10-vocab.png`, fullPage: true });
 console.log('— 同一天两套：折线图左右顺序 —');
 // 折线图原来只按日期排，同一天的两条比较结果为 0，稳定排序保留了输入顺序，
 // 而输入是降序的，于是同一天的点在图上左右颠倒。
-await page.goto(`${BASE}/#/listening/new`, { waitUntil: 'networkidle' });
+await page.goto(`${BASE}/#/toefl-listening/new`, { waitUntil: 'networkidle' });
 await step('同一天再录一套听力（错得更多）', async () => {
   await page.getByPlaceholder(/官方模考/).fill('官方模考 3');
   await fillWrong('Router', '选回应', 6);
   await page.getByRole('button', { name: '保存这次练习' }).click();
-  await page.waitForURL(/#\/listening\/session\//, { timeout: 5000 });
+  await page.waitForURL(/#\/toefl-listening\/session\//, { timeout: 5000 });
 });
 await step('折线图上先录的在左、后录的在右', async () => {
-  await page.goto(`${BASE}/#/listening?tab=stats`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/#/toefl-listening?tab=stats`, { waitUntil: 'networkidle' });
   const svg = page.locator('svg[aria-label*="正确率走势"]').first();
   await svg.waitFor({ timeout: 3000 });
   // 悬停最左边的点，tooltip 应该是先录的那套
@@ -320,8 +326,88 @@ await step('折线图上先录的在左、后录的在右', async () => {
   await page.getByText('官方模考 3').first().waitFor({ timeout: 3000 });
 });
 
+console.log('— 雅思听力：4 个 Part + Band 估算 —');
+await page.goto(`${BASE}/#/ielts-listening`, { waitUntil: 'networkidle' });
+await step('雅思页面打开，和托福是两套独立记录', async () => {
+  await page.getByText('4 个 Part 各 10 题').first().waitFor({ timeout: 5000 });
+  // 托福录过 3 套，雅思这边应该还是空的
+  await page.getByText('还没有听力练习记录').waitFor({ timeout: 3000 });
+});
+await page.goto(`${BASE}/#/ielts-listening/new`, { waitUntil: 'networkidle' });
+await step('4 个 Part 各 10 题，没有题数输入框', async () => {
+  for (const label of ['Part 1', 'Part 2', 'Part 3', 'Part 4']) {
+    await page.locator('div.rounded-lg').filter({ hasText: label }).first().getByText('10 题').waitFor({ timeout: 3000 });
+  }
+  const totals = await page.getByRole('spinbutton', { name: '题目总数' }).count();
+  if (totals !== 0) throw new Error('听力题数固定，不该有题数输入框');
+});
+// 40 题错 8 → 对 32 → 听力表里 32 落在 7.5 档
+await step('错 8 题 → 对 32 → 估算 Band 7.5', async () => {
+  await page.getByPlaceholder(/官方模考/).fill('剑桥 18 Test 1');
+  await fillWrongByLabel('Part 1', 0);
+  await fillWrongByLabel('Part 2', 2);
+  await fillWrongByLabel('Part 3', 3);
+  await fillWrongByLabel('Part 4', 3);
+  await page.getByText(/对 32\/40 题/).waitFor({ timeout: 3000 });
+  await page.getByText('Band 7.5').first().waitFor({ timeout: 3000 });
+});
+await step('估算标明了不确定性，不是当成准确值', () =>
+  page.getByText(/官方不公布换算表/).waitFor({ timeout: 3000 }));
+await step('点估算把 7.5 填进 Band 选择器并保存', async () => {
+  await page.getByText(/对 32\/40 题/).click();
+  const band = page.locator('div').filter({ hasText: /^Band 得分/ }).last();
+  const pressed = await band.getByRole('button', { name: '7.5', exact: true }).getAttribute('aria-pressed');
+  if (pressed !== 'true') throw new Error('点估算之后 Band 7.5 应该被选中');
+  await page.getByRole('button', { name: '保存这次练习' }).click();
+  await page.waitForURL(/#\/ielts-listening\/session\//, { timeout: 5000 });
+  await page.getByText('Band 7.5').first().waitFor({ timeout: 3000 });
+});
+
+console.log('— 雅思阅读：每篇题数可改 —');
+await page.goto(`${BASE}/#/ielts-reading/new`, { waitUntil: 'networkidle' });
+await step('三篇预填 13/13/14，且题数可改', async () => {
+  const p3 = page.locator('div.rounded-lg').filter({ hasText: 'Passage 3' }).first();
+  const total = p3.getByRole('spinbutton', { name: '题目总数' });
+  const v = await total.inputValue();
+  if (v !== '14') throw new Error(`Passage 3 应预填 14，实际 ${v}`);
+  // 这套题分成 13/14/13，把第三篇改成 13
+  await total.fill('13');
+});
+await step('题数改小后错题数跟着压下来，不留「错 14 共 13」', async () => {
+  const p1 = page.locator('div.rounded-lg').filter({ hasText: 'Passage 1' }).first();
+  await p1.getByRole('spinbutton', { name: /^错题数/ }).fill('13');
+  await p1.getByRole('spinbutton', { name: '题目总数' }).fill('10');
+  const wrong = await p1.getByRole('spinbutton', { name: /^错题数/ }).inputValue();
+  if (wrong !== '10') throw new Error(`错题数该被压到 10，实际 ${wrong}`);
+});
+
+console.log('— 雅思写作：0–9 半档自评 —');
+await page.goto(`${BASE}/#/ielts-writing/new`, { waitUntil: 'networkidle' });
+await step('自评分是 0–9 半档共 19 档，不是托福的 0–5', async () => {
+  const t1 = page.locator('section').filter({ has: page.locator('h2', { hasText: 'Task 1' }) }).first();
+  await t1.getByText('0–9').first().waitFor({ timeout: 3000 });
+  await t1.getByRole('button', { name: '6.5', exact: true }).first().waitFor({ timeout: 3000 });
+});
+await step('Task 2 字数目标是 250 起，不是托福的 100–130', async () => {
+  const t2 = page.locator('section').filter({ has: page.locator('h2', { hasText: 'Task 2' }) }).first();
+  await t2.getByText(/目标 250/).waitFor({ timeout: 3000 });
+});
+
+console.log('— 托福数据没被雅思影响 —');
+await step('托福听力的记录还在，且 Band 档位仍是 1–6', async () => {
+  await page.goto(`${BASE}/#/toefl-listening`, { waitUntil: 'networkidle' });
+  await page.getByText('官方模考 2').first().waitFor({ timeout: 5000 });
+  await page.goto(`${BASE}/#/toefl-listening/new`, { waitUntil: 'networkidle' });
+  const band = page.locator('div').filter({ hasText: /^Band 得分/ }).last();
+  const n = await band.getByRole('button').count();
+  if (n !== 11) throw new Error(`托福 Band 应是 1–6 共 11 档，实际 ${n}`);
+  if ((await band.getByRole('button', { name: '9', exact: true }).count()) !== 0) {
+    throw new Error('托福不该出现 Band 9');
+  }
+});
+
 console.log('— 持久化 —');
-await page.goto(`${BASE}/#/listening`, { waitUntil: 'networkidle' });
+await page.goto(`${BASE}/#/toefl-listening`, { waitUntil: 'networkidle' });
 await page.reload({ waitUntil: 'networkidle' });
 await step('刷新后练习记录还在', () => page.getByText('官方模考 2').first().waitFor({ timeout: 5000 }));
 
@@ -349,6 +435,23 @@ await step('阅读的题型进入薄弱题型排行', async () => {
   const bars = page.locator('section').filter({ has: page.locator('h2', { hasText: '薄弱题型' }) });
   await bars.getByText('词汇填空').waitFor({ timeout: 3000 });
 });
+await step('概览按考试分成两组，每组四科', async () => {
+  for (const [exam, label] of [
+    ['toefl', '托福'],
+    ['ielts', '雅思'],
+  ]) {
+    const group = page
+      .locator('section')
+      .filter({ has: page.locator('h2', { hasText: new RegExp(`^${label}$`) }) });
+    const cards = group.locator(`a[href*="#/${exam}-"]`);
+    const n = await cards.count();
+    if (n !== 4) throw new Error(`${label}那组应有 4 张科目卡，实际 ${n}`);
+  }
+});
+await step('薄弱题型排行里科目名带考试前缀，不然两个考试的「阅读」分不清', async () => {
+  const bars = page.locator('section').filter({ has: page.locator('h2', { hasText: '薄弱题型' }) });
+  await bars.getByText('托福阅读').first().waitFor({ timeout: 3000 });
+});
 await page.screenshot({ path: `${SHOTS}/12-dashboard-full.png`, fullPage: true });
 
 console.log('— 导出导入往返 —');
@@ -362,7 +465,9 @@ await step('导出 JSON 备份', async () => {
   exported = `${SHOTS}/backup.json`;
   await download.saveAs(exported);
   const parsed = JSON.parse(await fs.readFile(exported, 'utf8'));
-  if (parsed.sessions.length !== 5) throw new Error(`备份里应有 5 次练习，实际 ${parsed.sessions.length}`);
+  if (parsed.sessions.length !== 6) throw new Error(`备份里应有 6 次练习，实际 ${parsed.sessions.length}`);
+  if (!parsed.sessions.some((s) => s.subject === 'ielts-listening')) throw new Error('备份里应有雅思听力记录');
+  if (!parsed.sessions.some((s) => s.subject === 'toefl-listening')) throw new Error('备份里应有托福听力记录');
   if (!parsed.sessions.some((s) => s.band === 5.5)) throw new Error('备份里应存着 Band 5.5 这个半档分');
   if (parsed.notes.length !== 1) throw new Error(`备份里应有 1 条笔记，实际 ${parsed.notes.length}`);
   if (parsed.vocab.length !== 1) throw new Error(`备份里应有 1 个生词，实际 ${parsed.vocab.length}`);
@@ -378,7 +483,7 @@ await step('导入后数据完整还原', async () => {
   await page.getByRole('button', { name: '覆盖' }).click();
   await page.locator('input[type=file]').setInputFiles(exported);
   await page.getByText(/已覆盖导入/).waitFor({ timeout: 5000 });
-  await page.goto(`${BASE}/#/listening`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/#/toefl-listening`, { waitUntil: 'networkidle' });
   await page.getByText('官方模考 2').first().waitFor({ timeout: 5000 });
 });
 
@@ -393,7 +498,7 @@ await page.screenshot({ path: `${SHOTS}/13-light-mode.png`, fullPage: true });
 
 console.log('— 手机视口 —');
 const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
-await mobile.goto(`${BASE}/#/listening/new`, { waitUntil: 'networkidle' });
+await mobile.goto(`${BASE}/#/toefl-listening/new`, { waitUntil: 'networkidle' });
 await mobile.waitForTimeout(500);
 await mobile.screenshot({ path: `${SHOTS}/14-mobile-form.png`, fullPage: true });
 await step('手机端没有横向溢出', async () => {

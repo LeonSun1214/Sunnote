@@ -1,5 +1,5 @@
 import type { AppData } from '../types';
-import { SUBJECT_LIST, getTaskType, taskTypeLabel } from '../config/subjects';
+import { SUBJECT_LIST, getTaskType, taskTypeLabel } from '../config/exams';
 import { blocksTotals, formatAccuracy, sessionAccuracy } from './stats';
 import { formatDate } from './date';
 

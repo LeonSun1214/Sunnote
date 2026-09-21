@@ -5,8 +5,8 @@ import { useSubjectParam } from './useSubjectParam';
 import { AccuracyBadge } from '../../components/AccuracyBadge';
 import { accuracy, blocksAccuracy, blocksTotals, itemsNeededToPass } from '../../utils/stats';
 import { formatDate, formatDuration } from '../../utils/date';
-import { getTaskType } from '../../config/subjects';
-import { SUBJECT_STYLES, cx } from '../../utils/ui';
+import { getTaskType } from '../../config/exams';
+import { subjectStyle, cx } from '../../utils/ui';
 
 export function SessionDetail() {
   const config = useSubjectParam();
@@ -18,7 +18,7 @@ export function SessionDetail() {
   if (!config) return <Navigate to="/" replace />;
   if (!session) return <Navigate to={`/${config.key}`} replace />;
 
-  const style = SUBJECT_STYLES[config.key];
+  const style = subjectStyle(config.key);
   const overall = blocksAccuracy(session.blocks);
   const totals = blocksTotals(session.blocks);
   const modules: ModuleKind[] = ['router', 'upper', 'lower'];

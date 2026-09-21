@@ -12,9 +12,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Sunnote 托福备考笔记',
+        name: 'Sunnote 托福雅思备考笔记',
         short_name: 'Sunnote',
-        description: '托福四科错题记录与知识积累（新版 2026 格式）',
+        description: '托福（新版 2026 自适应）和雅思（Academic）的错题记录与知识积累',
         theme_color: '#0f172a',
         background_color: '#0f172a',
         display: 'standalone',

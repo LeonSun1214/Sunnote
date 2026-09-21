@@ -1,27 +1,18 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
-import { SUBJECT_LIST } from '../config/subjects';
+import type { Exam, Skill } from '../types';
+import { EXAM_LABELS, EXAM_ORDER, SKILL_ORDER, SUBJECT_CONFIGS, isSubject } from '../config/exams';
 import { useAppData } from '../store/hooks';
-import { SUBJECT_STYLES, cx } from '../utils/ui';
+import { subjectStyle, cx } from '../utils/ui';
 
-interface NavItem {
-  to: string;
-  label: string;
-  icon: string;
-  /** 主色类名，用于选中态。 */
-  activeText?: string;
-}
+const SKILL_ICONS: Record<Skill, string> = {
+  listening: '🎧',
+  reading: '📖',
+  writing: '✍️',
+  speaking: '🎙️',
+};
 
-const PRIMARY_NAV: NavItem[] = [{ to: '/', label: '仪表盘', icon: '◎' }];
-
-const SUBJECT_NAV: NavItem[] = SUBJECT_LIST.map((s) => ({
-  to: `/${s.key}`,
-  label: s.label,
-  icon: { listening: '🎧', reading: '📖', writing: '✍️', speaking: '🎙️' }[s.key],
-  activeText: SUBJECT_STYLES[s.key].text,
-}));
-
-const LIBRARY_NAV: NavItem[] = [
+const LIBRARY_NAV = [
   { to: '/vocab', label: '生词本', icon: '🔤' },
   { to: '/phrases', label: '句型库', icon: '🧩' },
   { to: '/settings', label: '设置', icon: '⚙︎' },
@@ -54,33 +45,53 @@ function useTheme() {
   }, [theme]);
 }
 
+/**
+ * 当前在哪个考试下。从地址栏推导而不是存状态 —— 刷新、分享链接、前进后退
+ * 都自然正确，不用额外同步。不在某个科目页时默认托福。
+ */
+function useCurrentExam(): Exam {
+  const { pathname } = useLocation();
+  const first = pathname.split('/')[1] ?? '';
+  return isSubject(first) ? SUBJECT_CONFIGS[first].exam : 'toefl';
+}
+
 export function AppShell() {
   useTheme();
+  const currentExam = useCurrentExam();
 
   return (
     <div className="flex min-h-full flex-col lg:flex-row">
-      {/* 桌面端侧边栏 */}
+      {/* 桌面端侧边栏：按考试分组 */}
       <aside className="hidden w-56 shrink-0 border-r border-slate-200 p-4 lg:block dark:border-slate-800">
         <div className="mb-6 px-2">
           <p className="text-lg font-semibold">Sunnote</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">托福备考笔记 · 2026 新版</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">托福 · 雅思备考笔记</p>
         </div>
         <nav className="space-y-1">
-          {PRIMARY_NAV.map((item) => (
-            <NavLink key={item.to} to={item.to} end className={(s) => navClass(s)}>
-              <span className="w-5 text-center">{item.icon}</span>
-              {item.label}
-            </NavLink>
-          ))}
+          <NavLink to="/" end className={(s) => navClass(s)}>
+            <span className="w-5 text-center">◎</span>
+            仪表盘
+          </NavLink>
 
-          <p className="px-3 pb-1 pt-4 text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-600">
-            四门科目
-          </p>
-          {SUBJECT_NAV.map((item) => (
-            <NavLink key={item.to} to={item.to} className={(s) => navClass(s, item.activeText)}>
-              <span className="w-5 text-center">{item.icon}</span>
-              {item.label}
-            </NavLink>
+          {EXAM_ORDER.map((exam) => (
+            <div key={exam}>
+              <p className="px-3 pb-1 pt-4 text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-600">
+                {EXAM_LABELS[exam]}
+              </p>
+              {SKILL_ORDER.map((skill) => {
+                const config = SUBJECT_CONFIGS[`${exam}-${skill}`];
+                return (
+                  <NavLink
+                    key={config.key}
+                    to={`/${config.key}`}
+                    className={(s) => navClass(s, subjectStyle(config.key).text)}
+                  >
+                    <span className="w-5 text-center">{SKILL_ICONS[skill]}</span>
+                    {config.label}
+                  </NavLink>
+                );
+              })}
+            </div>
           ))}
 
           <p className="px-3 pb-1 pt-4 text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-600">
@@ -95,10 +106,26 @@ export function AppShell() {
         </nav>
       </aside>
 
-      {/* 移动端顶栏 */}
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-slate-50/90 px-4 py-3 backdrop-blur lg:hidden dark:border-slate-800 dark:bg-slate-950/90">
-        <p className="font-semibold">Sunnote</p>
-        <NavLink to="/settings" className="text-sm text-slate-500 dark:text-slate-400">
+      {/* 移动端顶栏：考试切换 */}
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/90 px-4 py-2.5 backdrop-blur lg:hidden dark:border-slate-800 dark:bg-slate-950/90">
+        <p className="shrink-0 font-semibold">Sunnote</p>
+        <div className="flex gap-1 rounded-lg bg-slate-200 p-0.5 dark:bg-slate-800">
+          {EXAM_ORDER.map((exam) => (
+            <NavLink
+              key={exam}
+              to={`/${exam}-listening`}
+              className={cx(
+                'rounded-md px-2.5 py-1 text-xs transition',
+                currentExam === exam
+                  ? 'bg-white font-medium shadow-sm dark:bg-slate-700'
+                  : 'text-slate-500 dark:text-slate-400',
+              )}
+            >
+              {EXAM_LABELS[exam]}
+            </NavLink>
+          ))}
+        </div>
+        <NavLink to="/settings" className="shrink-0 text-sm text-slate-500 dark:text-slate-400">
           ⚙︎
         </NavLink>
       </header>
@@ -107,26 +134,41 @@ export function AppShell() {
         <Outlet />
       </main>
 
-      {/* 移动端底部标签栏 */}
+      {/* 移动端底栏：当前考试的四科。考试由顶栏切换，这里只跟着走。 */}
       <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden dark:border-slate-800 dark:bg-slate-900/95">
-        {[PRIMARY_NAV[0], ...SUBJECT_NAV].map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
-            className={({ isActive }) =>
-              cx(
-                'flex flex-col items-center gap-0.5 py-2 text-[11px] transition',
-                isActive
-                  ? cx('font-medium', item.activeText ?? 'text-slate-900 dark:text-slate-100')
-                  : 'text-slate-500 dark:text-slate-500',
-              )
-            }
-          >
-            <span className="text-base leading-none">{item.icon}</span>
-            {item.label}
-          </NavLink>
-        ))}
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) =>
+            cx(
+              'flex flex-col items-center gap-0.5 py-2 text-[11px] transition',
+              isActive ? 'font-medium text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-500',
+            )
+          }
+        >
+          <span className="text-base leading-none">◎</span>
+          仪表盘
+        </NavLink>
+        {SKILL_ORDER.map((skill) => {
+          const config = SUBJECT_CONFIGS[`${currentExam}-${skill}`];
+          return (
+            <NavLink
+              key={config.key}
+              to={`/${config.key}`}
+              className={({ isActive }) =>
+                cx(
+                  'flex flex-col items-center gap-0.5 py-2 text-[11px] transition',
+                  isActive
+                    ? cx('font-medium', subjectStyle(config.key).text)
+                    : 'text-slate-500 dark:text-slate-500',
+                )
+              }
+            >
+              <span className="text-base leading-none">{SKILL_ICONS[skill]}</span>
+              {config.label}
+            </NavLink>
+          );
+        })}
       </nav>
     </div>
   );

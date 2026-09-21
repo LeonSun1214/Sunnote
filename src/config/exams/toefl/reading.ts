@@ -1,4 +1,4 @@
-import type { SubjectConfig } from '../../types';
+import type { SubjectConfig } from '../../../types';
 
 /**
  * 新版 2026 阅读：与听力同为两段自适应。
@@ -14,10 +14,14 @@ import type { SubjectConfig } from '../../types';
  * 和听力同一个规律：Upper 砍掉偏日常的短篇文本、Lower 砍掉偏学术的长文。
  */
 export const readingConfig: SubjectConfig = {
-  key: 'reading',
+  key: 'toefl-reading',
+  exam: 'toefl',
+  skill: 'reading',
   label: '阅读',
   labelEn: 'Reading',
   adaptive: true,
+  // 托福 Band 1–6，半档
+  bandOptions: [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6],
   color: 'reading',
   blurb: 'Router 20 题 → Upper / Lower 各 15 题，必答共 35 题。加试题不计分，不用记。',
   routingThreshold: 0.7,
