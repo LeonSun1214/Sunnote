@@ -3,7 +3,21 @@ import type { AppData } from '../types';
 const STORAGE_KEY = 'sunnote:data';
 
 /** 数据结构版本。改动 AppData 形状时 +1，并在 migrate 里补上迁移。 */
-export const DATA_VERSION = 1;
+export const DATA_VERSION = 2;
+
+/**
+ * v1 → v2：加入雅思后，subject 从四科（'listening'）变成「考试-技能」
+ * 复合键（'toefl-listening'）。老数据全是托福，统一加前缀。
+ *
+ * 必须幂等 —— migrate 在每次读取和每次导入时都会跑，把已经迁移过的值
+ * 再加一次前缀会变成 'toefl-toefl-listening'，那条记录就永远查不到配置了。
+ */
+const LEGACY_SKILLS = ['listening', 'reading', 'writing', 'speaking'];
+
+function upgradeSubject(value: unknown): string {
+  if (typeof value !== 'string') return 'toefl-listening';
+  return LEGACY_SKILLS.includes(value) ? `toefl-${value}` : value;
+}
 
 export function emptyData(): AppData {
   return {
@@ -25,10 +39,16 @@ export function migrate(raw: unknown): AppData {
   if (!raw || typeof raw !== 'object') return base;
 
   const data = raw as Partial<AppData>;
+  // subject 带考试前缀。只有 sessions 和 notes 有这个字段，生词和句型是跨科目的。
+  const withSubject = <T extends { subject?: unknown }>(items: unknown): T[] =>
+    Array.isArray(items)
+      ? items.map((item) => ({ ...item, subject: upgradeSubject(item?.subject) }) as T)
+      : [];
+
   return {
     version: DATA_VERSION,
-    sessions: Array.isArray(data.sessions) ? data.sessions : [],
-    notes: Array.isArray(data.notes) ? data.notes : [],
+    sessions: withSubject(data.sessions),
+    notes: withSubject(data.notes),
     vocab: Array.isArray(data.vocab) ? data.vocab : [],
     phrases: Array.isArray(data.phrases) ? data.phrases : [],
     settings: { ...base.settings, ...(data.settings ?? {}) },

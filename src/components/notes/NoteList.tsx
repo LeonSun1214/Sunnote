@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Note, Subject } from '../../types';
-import { taskTypeLabel } from '../../config/subjects';
+import { taskTypeLabel } from '../../config/exams';
 import { relativeTime } from '../../utils/date';
 import { EmptyState } from '../EmptyState';
 import { cx } from '../../utils/ui';

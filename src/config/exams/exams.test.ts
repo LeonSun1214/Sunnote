@@ -54,7 +54,7 @@ describe('科目配置自洽性', () => {
 
 /** 这几条是用户从真实试卷里核对出来的，写成断言防止以后被误改。 */
 describe('听力题数分布', () => {
-  const t = (key: string) => SUBJECT_CONFIGS.listening.taskTypes.find((x) => x.key === key)!.items!;
+  const t = (key: string) => SUBJECT_CONFIGS['toefl-listening'].taskTypes.find((x) => x.key === key)!.items!;
 
   it('Router 20 题：选回应 8、对话 4、通知 4、讲座 4', () => {
     expect(t('choose_a_response').router).toBe(8);
@@ -79,7 +79,7 @@ describe('听力题数分布', () => {
 });
 
 describe('阅读题数分布', () => {
-  const t = (key: string) => SUBJECT_CONFIGS.reading.taskTypes.find((x) => x.key === key)!.items!;
+  const t = (key: string) => SUBJECT_CONFIGS['toefl-reading'].taskTypes.find((x) => x.key === key)!.items!;
 
   it('Router 20 题：词汇 10、短篇 5、长文 5', () => {
     expect(t('vocabulary').router).toBe(10);
@@ -102,13 +102,13 @@ describe('阅读题数分布', () => {
 
 describe('模块可用性由 items 的键决定', () => {
   it('听力的通知不进 Upper、讲座不进 Lower', () => {
-    const types = SUBJECT_CONFIGS.listening.taskTypes;
+    const types = SUBJECT_CONFIGS['toefl-listening'].taskTypes;
     expect(types.find((t) => t.key === 'announcements')!.items).not.toHaveProperty('upper');
     expect(types.find((t) => t.key === 'academic_talks')!.items).not.toHaveProperty('lower');
   });
 
   it('阅读的短篇不进 Upper、长文不进 Lower', () => {
-    const types = SUBJECT_CONFIGS.reading.taskTypes;
+    const types = SUBJECT_CONFIGS['toefl-reading'].taskTypes;
     expect(types.find((t) => t.key === 'short_texts')!.items).not.toHaveProperty('upper');
     expect(types.find((t) => t.key === 'academic_passages')!.items).not.toHaveProperty('lower');
   });
@@ -117,7 +117,7 @@ describe('模块可用性由 items 的键决定', () => {
 /** 模块题数本身也要对得上：Router 20 + Upper/Lower 15 = 必答 35。 */
 describe('模块题数', () => {
   it('听力和阅读都是 Router 20 + 第二模块 15 = 35', () => {
-    for (const key of ['listening', 'reading'] as const) {
+    for (const key of ['toefl-listening', 'toefl-reading'] as const) {
       const modules = SUBJECT_CONFIGS[key].modules!;
       const byKey = (k: ModuleKind) => modules.find((m) => m.key === k)!.scoredItems;
       expect(byKey('router'), `${key} Router`).toBe(20);

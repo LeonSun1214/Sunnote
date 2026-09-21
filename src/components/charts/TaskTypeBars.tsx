@@ -1,7 +1,7 @@
 import type { Subject } from '../../types';
 import type { TaskTypeStat } from '../../utils/stats';
 import { formatAccuracy } from '../../utils/stats';
-import { SUBJECT_CONFIGS, taskTypeLabel } from '../../config/subjects';
+import { SUBJECT_CONFIGS, taskTypeLabel } from '../../config/exams';
 import { subjectVar, cx } from '../../utils/ui';
 
 interface Props {

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { SUBJECT_LIST } from '../config/subjects';
+import { SUBJECT_CONFIGS, SUBJECT_LIST } from '../config/exams';
 import { useAppData } from '../store/hooks';
 import { Sparkline, TaskTypeBars } from '../components/charts/TaskTypeBars';
 import { AccuracyBadge } from '../components/AccuracyBadge';
@@ -16,7 +16,7 @@ import {
   weakestTaskTypes,
 } from '../utils/stats';
 import { daysSince, formatDate, relativeTime } from '../utils/date';
-import { SUBJECT_STYLES, cx } from '../utils/ui';
+import { subjectStyle, cx } from '../utils/ui';
 
 /** 超过这么多天没导出就提醒备份 —— 浏览器数据清掉就没了。 */
 const BACKUP_REMINDER_DAYS = 7;
@@ -30,7 +30,8 @@ export function Dashboard() {
 
   // Router 达线率跨听力和阅读一起算 —— 两科都是同一套两段自适应结构
   const adaptiveSessions = useMemo(
-    () => sessions.filter((s) => s.subject === 'listening' || s.subject === 'reading'),
+    // Router 达线率是托福特有的 —— 雅思不自适应，没有这条线
+    () => sessions.filter((s) => SUBJECT_CONFIGS[s.subject]?.adaptive),
     [sessions],
   );
   const router = useMemo(() => routerStat(adaptiveSessions, 0.7), [adaptiveSessions]);
@@ -110,7 +111,7 @@ export function Dashboard() {
               .map(sessionAccuracy)
               .filter((a): a is number => a !== null);
             const latest = subjectSessions[0];
-            const style = SUBJECT_STYLES[config.key];
+            const style = subjectStyle(config.key);
 
             return (
               <Link
@@ -159,7 +160,7 @@ export function Dashboard() {
                   className="flex items-baseline justify-between gap-3 text-sm transition hover:underline"
                 >
                   <span className="min-w-0 truncate">
-                    <span className={cx('mr-1.5 text-xs', SUBJECT_STYLES[note.subject].text)}>
+                    <span className={cx('mr-1.5 text-xs', subjectStyle(note.subject).text)}>
                       {SUBJECT_LIST.find((s) => s.key === note.subject)?.label}
                     </span>
                     {note.title}

@@ -27,7 +27,7 @@ function block(partial: Partial<ObjectiveBlock>): ObjectiveBlock {
 function session(partial: Partial<Session>): Session {
   return {
     id: Math.random().toString(36).slice(2),
-    subject: 'listening',
+    subject: 'toefl-listening',
     setName: '模考',
     date: '2026-08-01',
     blocks: [],

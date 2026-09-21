@@ -18,7 +18,7 @@ import {
 } from './sessionDraft';
 import { blocksAccuracy, blocksTotals, itemsNeededToPass } from '../../utils/stats';
 import { todayKey } from '../../utils/date';
-import { SUBJECT_STYLES, cx } from '../../utils/ui';
+import { subjectStyle, cx } from '../../utils/ui';
 
 /**
  * 换科目只是 hash 变化，React Router 认为还是同一个路由组件、不会重新挂载，
@@ -79,7 +79,7 @@ function SessionFormInner({ config, sessionId }: { config: SubjectConfig; sessio
 
   if (isEdit && !existing) return <Navigate to={`/${config.key}`} replace />;
 
-  const style = SUBJECT_STYLES[config.key];
+  const style = subjectStyle(config.key);
   const objectiveTypes = config.taskTypes.filter((t) => t.kind === 'objective');
   const subjectiveTypes = config.taskTypes.filter((t) => t.kind === 'subjective');
 

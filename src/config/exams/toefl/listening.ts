@@ -1,4 +1,4 @@
-import type { SubjectConfig } from '../../types';
+import type { SubjectConfig } from '../../../types';
 
 /**
  * 新版 2026 听力：Router 20 题 → Upper 15 题 或 Lower 15 题，必答共 35 题。
@@ -17,10 +17,14 @@ import type { SubjectConfig } from '../../types';
  * 规律是 Upper 砍掉偏日常的通知、Lower 砍掉偏学术的讲座 —— 自适应本来就该这样分。
  */
 export const listeningConfig: SubjectConfig = {
-  key: 'listening',
+  key: 'toefl-listening',
+  exam: 'toefl',
+  skill: 'listening',
   label: '听力',
   labelEn: 'Listening',
   adaptive: true,
+  // 托福 Band 1–6，半档
+  bandOptions: [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6],
   color: 'listening',
   blurb: 'Router 20 题定分流，之后进 Upper 或 Lower 各 15 题。必答共 35 题。',
   routingThreshold: 0.7,

@@ -1,4 +1,4 @@
-import type { SubjectConfig } from '../../types';
+import type { SubjectConfig } from '../../../types';
 
 /**
  * 新版 2026 写作：约 23 分钟，12 题，三个题型顺序固定。
@@ -6,10 +6,14 @@ import type { SubjectConfig } from '../../types';
  * Email 和 Academic Discussion 是主观题，用自评分 + 字数 + 扣分维度记录。
  */
 export const writingConfig: SubjectConfig = {
-  key: 'writing',
+  key: 'toefl-writing',
+  exam: 'toefl',
+  skill: 'writing',
   label: '写作',
   labelEn: 'Writing',
   adaptive: false,
+  // 托福 Band 1–6，半档
+  bandOptions: [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6],
   color: 'writing',
   blurb: 'Build a Sentence 10 题算正确率；Email 和学术讨论按自评分、字数、扣分点记录。',
   taskTypes: [
