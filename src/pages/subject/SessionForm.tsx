@@ -17,6 +17,7 @@ import {
   pruneTasks,
 } from './sessionDraft';
 import { blocksAccuracy, blocksTotals, itemsNeededToPass } from '../../utils/stats';
+import { estimateBand } from '../../utils/bands';
 import { todayKey } from '../../utils/date';
 import { subjectStyle, cx } from '../../utils/ui';
 
@@ -25,9 +26,6 @@ import { subjectStyle, cx } from '../../utils/ui';
  * 表单里那些只在挂载时算一次的初始状态就会留着上一科的题组。
  * 用 key 把科目和记录 id 绑进组件身份，切换时强制重挂载。
  */
-/** Band 1–6，含半档。0.5 在二进制里是精确的，不会有浮点误差。 */
-const BAND_OPTIONS = Array.from({ length: 11 }, (_, i) => 1 + i * 0.5);
-
 export function SessionForm() {
   const config = useSubjectParam();
   const { sessionId } = useParams();
@@ -94,6 +92,9 @@ function SessionFormInner({ config, sessionId }: { config: SubjectConfig; sessio
 
   const overall = blocksAccuracy(visibleBlocks);
   const overallTotals = blocksTotals(visibleBlocks);
+  const correctCount = overallTotals.total - overallTotals.wrong;
+  // 只有雅思听力/阅读有换算表；其余科目返回 null，不显示这一块
+  const estimated = overallTotals.total > 0 ? estimateBand(config, correctCount) : null;
 
   const patchBlock = (key: string, patch: Partial<ObjectiveBlock>) => {
     setBlocks((prev) => {
@@ -236,10 +237,27 @@ function SessionFormInner({ config, sessionId }: { config: SubjectConfig; sessio
           <AccuracyBadge value={overall} size="lg" />
         </div>
 
+        {estimated != null && (
+          <button
+            type="button"
+            onClick={() => setBand(estimated)}
+            className="w-full rounded-lg border border-dashed border-slate-300 px-3 py-2 text-left text-xs transition hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-600"
+          >
+            对 {correctCount}/{overallTotals.total} 题 ≈{' '}
+            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Band {estimated}</span>
+            <span className="ml-1.5 text-slate-500 dark:text-slate-400">
+              （估算，点一下填进下面）
+            </span>
+            <span className="mt-0.5 block text-[11px] text-slate-400 dark:text-slate-500">
+              雅思官方不公布换算表，分数线会随每套题难度浮动，只能当参考。
+            </span>
+          </button>
+        )}
+
         <div>
           <span className="label">Band 得分（实际或自评，可留空）</span>
           <div className="flex flex-wrap gap-1.5">
-            {BAND_OPTIONS.map((b) => (
+            {config.bandOptions.map((b) => (
               <button
                 key={b}
                 type="button"

@@ -16,7 +16,18 @@ function countWords(text: string): number {
   return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
+/** 托福 0–5 整档，雅思 0–9 半档。没配就按托福来。 */
+const DEFAULT_SCORE_SCALE = { min: 0, max: 5, step: 1 };
+
 export function SubjectiveTaskInput({ config, task, onChange, index }: Props) {
+  const scale = config.scoreScale ?? DEFAULT_SCORE_SCALE;
+  const scoreOptions = Array.from(
+    { length: Math.round((scale.max - scale.min) / scale.step) + 1 },
+    (_, i) => scale.min + i * scale.step,
+  );
+  // 口语题没有字数要求，答案框是转写用的。托福和雅思的口语题型 key 不同，
+  // 所以按「有没有字数区间」判断，而不是写死某个 key。
+  const isSpeaking = !config.wordRange;
   const words = task.wordCount ?? 0;
   const [minWords, maxWords] = config.wordRange ?? [];
   const wordsOff =
@@ -46,16 +57,21 @@ export function SubjectiveTaskInput({ config, task, onChange, index }: Props) {
       </div>
 
       <div className="mb-3">
-        <span className="label">自评分</span>
-        <div className="flex gap-1.5">
-          {[0, 1, 2, 3, 4, 5].map((score) => (
+        <span className="label">
+          自评分
+          <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">
+            {scale.min}–{scale.max}
+          </span>
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          {scoreOptions.map((score) => (
             <button
               key={score}
               type="button"
               aria-pressed={task.selfScore === score}
               onClick={() => onChange({ selfScore: score })}
               className={cx(
-                'h-9 flex-1 rounded-lg border text-sm font-medium tabular-nums transition',
+                'h-9 min-w-[2.75rem] flex-1 rounded-lg border text-sm font-medium tabular-nums transition',
                 task.selfScore === score
                   ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
                   : 'border-slate-300 hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-600',
@@ -69,7 +85,7 @@ export function SubjectiveTaskInput({ config, task, onChange, index }: Props) {
 
       <div className="mb-3">
         <span className="label">
-          我的答案{config.key === 'take_an_interview' ? '（口语转写）' : ''}
+          我的答案{isSpeaking ? '（口语转写）' : ''}
           {config.wordRange && (
             <span className={cx('ml-2 font-normal tabular-nums', wordsOff ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500')}>
               {words} 词 / 目标 {minWords}–{maxWords}
@@ -80,7 +96,7 @@ export function SubjectiveTaskInput({ config, task, onChange, index }: Props) {
         <textarea
           className="input min-h-24 resize-y font-normal"
           rows={4}
-          placeholder={config.key === 'take_an_interview' ? '把自己说的内容转写下来，方便回看语法和用词' : '粘贴或手打你的答案'}
+          placeholder={isSpeaking ? '把自己说的内容转写下来，方便回看语法和用词' : '粘贴或手打你的答案'}
           value={task.answer ?? ''}
           onChange={(e) => {
             const answer = e.target.value;
