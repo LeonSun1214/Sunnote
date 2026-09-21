@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { ThemeSetting } from '../types';
 import { useAppData } from '../store/hooks';
 import { exportMarkdown, downloadFile } from '../utils/exportMarkdown';
-import { DATA_VERSION } from '../store/storage';
+import { DATA_VERSION, findSnapshot, removeSnapshot } from '../store/storage';
 import type { ImportMode } from '../store/storage';
 import { daysSince, todayKey } from '../utils/date';
 import { cx } from '../utils/ui';
@@ -26,6 +26,25 @@ export function SettingsPage() {
     phrases: data.phrases.length,
   };
   const sinceExport = daysSince(data.settings.lastExportedAt);
+
+  // 升级前的自动快照。只在页面挂载时读一次 —— 它不会在使用过程中变。
+  const [snapshotDismissed, setSnapshotDismissed] = useState(false);
+  const snapshot = useMemo(() => {
+    const found = findSnapshot();
+    if (!found) return null;
+    try {
+      const parsed = JSON.parse(found.raw) as Partial<Record<string, unknown[]>> & { version?: number };
+      const n = (key: string) => (Array.isArray(parsed[key]) ? parsed[key]!.length : 0);
+      return {
+        ...found,
+        version: parsed.version ?? '未知',
+        counts: { sessions: n('sessions'), notes: n('notes'), vocab: n('vocab'), phrases: n('phrases') },
+      };
+    } catch {
+      // 解析不了也要让用户能下载 —— 原件比可读性重要
+      return { ...found, version: '未知' as const, counts: null };
+    }
+  }, []);
 
   const handleExportJson = () => {
     downloadFile(`sunnote-backup-${todayKey()}.json`, JSON.stringify(data, null, 2), 'application/json');
@@ -64,6 +83,33 @@ export function SettingsPage() {
     } finally {
       if (fileRef.current) fileRef.current.value = '';
     }
+  };
+
+  const handleDownloadSnapshot = () => {
+    if (!snapshot) return;
+    downloadFile(`sunnote-升级前备份-v${snapshot.version}-${todayKey()}.json`, snapshot.raw, 'application/json');
+    setStatus({ tone: 'ok', text: '升级前的备份已下载。这份是原件，出任何问题都能用它还原。' });
+  };
+
+  const handleRestoreSnapshot = () => {
+    if (!snapshot) return;
+    if (!window.confirm('用升级前的备份还原？\n\n当前的全部数据会被这份备份覆盖，不可撤销。\n建议先点「下载这份备份」，再导出一份当前数据。')) {
+      return;
+    }
+    try {
+      importData(JSON.parse(snapshot.raw), 'replace');
+      setStatus({ tone: 'ok', text: '已用升级前的备份还原。' });
+    } catch {
+      setStatus({ tone: 'error', text: '这份备份解析不了，请改用「下载这份备份」拿到原件后手动处理。' });
+    }
+  };
+
+  const handleDiscardSnapshot = () => {
+    if (!snapshot) return;
+    if (!window.confirm('删掉升级前的备份？\n\n确认数据都没问题之后再删。删掉就没有退路了。')) return;
+    removeSnapshot(snapshot.key);
+    setSnapshotDismissed(true);
+    setStatus({ tone: 'ok', text: '升级前的备份已删除。' });
   };
 
   const handleReset = () => {
@@ -160,6 +206,33 @@ export function SettingsPage() {
           选择备份文件…
         </button>
       </section>
+
+      {snapshot && !snapshotDismissed && (
+        <section className="card space-y-3 border-amber-300 dark:border-amber-900">
+          <div>
+            <h2 className="text-sm font-semibold">升级前的备份</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              应用升级数据格式时自动存下的原件（v{snapshot.version}）
+              {snapshot.counts
+                ? ` —— ${snapshot.counts.sessions} 次练习 · ${snapshot.counts.notes} 条笔记 · ${snapshot.counts.vocab} 个生词 · ${snapshot.counts.phrases} 条句型。`
+                : '。'}
+              对一下现在的数字（{counts.sessions} 次练习 · {counts.notes} 条笔记 · {counts.vocab} 个生词 ·{' '}
+              {counts.phrases} 条句型），对得上就说明升级没丢东西。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn-ghost" onClick={handleDownloadSnapshot}>
+              下载这份备份
+            </button>
+            <button type="button" className="btn-ghost" onClick={handleRestoreSnapshot}>
+              用它还原
+            </button>
+            <button type="button" className="btn-ghost" onClick={handleDiscardSnapshot}>
+              确认无误，删掉
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="card">
         <h2 className="mb-2 text-sm font-semibold">外观</h2>

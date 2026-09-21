@@ -17,7 +17,7 @@ interface Props {
  */
 function routingThresholdFor(subject: Subject): number | null {
   const config = SUBJECT_CONFIGS[subject];
-  return config.adaptive ? (config.routingThreshold ?? null) : null;
+  return config?.adaptive ? (config.routingThreshold ?? null) : null;
 }
 
 /**

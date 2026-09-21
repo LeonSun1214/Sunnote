@@ -508,6 +508,227 @@ await step('手机端没有横向溢出', async () => {
 await mobile.goto(`${BASE}/#/`, { waitUntil: 'networkidle' });
 await mobile.screenshot({ path: `${SHOTS}/15-mobile-dashboard.png`, fullPage: true });
 
+
+// ────────────────────────────────────────────────────────────────────────────
+// v1 → v2 升级：用一份真实形状的旧数据走一遍全程。
+// 这是最接近用户真实处境的一条 —— 数据只在浏览器里，迁移错了没有服务器副本兜底。
+// 用干净的 context，免得被前面那些测试写进去的数据污染。
+// ────────────────────────────────────────────────────────────────────────────
+console.log('— v1 数据升级 —');
+
+/** 一份 v1 形状的备份：subject 还是四科，没有考试前缀。 */
+const v1Data = {
+  version: 1,
+  sessions: [
+    {
+      id: 'old-s1', subject: 'listening', setName: 'TPO 60', date: '2026-07-01',
+      band: 4.5, createdAt: '2026-07-01T10:00:00.000Z', updatedAt: '2026-07-01T10:00:00.000Z',
+      blocks: [{ module: 'router', taskType: 'choose_a_response', total: 8, wrong: 2 }], tasks: [],
+    },
+    {
+      id: 'old-s2', subject: 'reading', setName: 'TPO 61', date: '2026-07-05',
+      band: 5, createdAt: '2026-07-05T10:00:00.000Z', updatedAt: '2026-07-05T10:00:00.000Z',
+      blocks: [{ module: 'router', taskType: 'vocabulary', total: 10, wrong: 3 }], tasks: [],
+    },
+    {
+      id: 'old-s3', subject: 'writing', setName: '写作练习 9', date: '2026-07-08',
+      createdAt: '2026-07-08T10:00:00.000Z', updatedAt: '2026-07-08T10:00:00.000Z',
+      blocks: [], tasks: [{ taskType: 'write_an_email', selfScore: 4, answer: '', rubricHits: [] }],
+    },
+  ],
+  notes: [{
+    id: 'old-n1', subject: 'listening', title: '讲座题总是走神', body: '记信号词',
+    tags: ['没听懂'], createdAt: '2026-07-01T11:00:00.000Z', updatedAt: '2026-07-02T11:00:00.000Z',
+  }],
+  vocab: [{
+    id: 'old-v1', word: 'ubiquitous', meaning: '无处不在的', familiarity: 1,
+    createdAt: '2026-07-01T11:00:00.000Z', updatedAt: '2026-07-01T11:00:00.000Z',
+  }],
+  phrases: [{
+    id: 'old-p1', text: 'It is worth noting that', category: 'writing',
+    createdAt: '2026-07-01T11:00:00.000Z', updatedAt: '2026-07-01T11:00:00.000Z',
+  }],
+  settings: { theme: 'dark', lastExportedAt: '2026-07-10T00:00:00.000Z' },
+};
+
+const upgradeCtx = await browser.newContext({ viewport: { width: 1180, height: 900 } });
+upgradeCtx.on('page', (p) => {
+  p.on('pageerror', (e) => errors.push(`pageerror(升级): ${e.message}`));
+  p.on('dialog', (d) => d.accept());
+});
+// addInitScript 在 about:blank 上也会执行，那里读 localStorage 会抛 —— 包起来
+await upgradeCtx.addInitScript((payload) => {
+  try {
+    localStorage.setItem('sunnote:data', payload);
+  } catch {
+    /* about:blank 上没有 localStorage，跳过 */
+  }
+}, JSON.stringify(v1Data));
+const up = await upgradeCtx.newPage();
+
+await up.goto(`${BASE}/#/`, { waitUntil: 'networkidle' });
+
+await step('旧的托福记录升级后全都还在', async () => {
+  for (const [subject, setName] of [
+    ['toefl-listening', 'TPO 60'],
+    ['toefl-reading', 'TPO 61'],
+    ['toefl-writing', '写作练习 9'],
+  ]) {
+    await up.goto(`${BASE}/#/${subject}`, { waitUntil: 'networkidle' });
+    await up.getByText(setName).first().waitFor({ timeout: 5000 });
+  }
+});
+
+await step('笔记、生词、句型也都在', async () => {
+  await up.goto(`${BASE}/#/toefl-listening?tab=notes`, { waitUntil: 'networkidle' });
+  await up.getByText('讲座题总是走神').first().waitFor({ timeout: 5000 });
+  await up.goto(`${BASE}/#/vocab`, { waitUntil: 'networkidle' });
+  await up.getByText('ubiquitous').first().waitFor({ timeout: 5000 });
+  await up.goto(`${BASE}/#/phrases`, { waitUntil: 'networkidle' });
+  // 句型页默认停在「语法点」，这条是 writing 分类的，得先切过去
+  await up.getByRole('button', { name: /^写作句型/ }).click();
+  await up.getByText('It is worth noting that').first().waitFor({ timeout: 5000 });
+});
+
+await step('主题这类设置也跟着迁过来了（v1 存的是 dark）', async () => {
+  const dark = await up.evaluate(() => document.documentElement.classList.contains('dark'));
+  if (!dark) throw new Error('v1 里存的 theme=dark 没有生效');
+});
+
+await step('留下了逐字节相同的升级前快照', async () => {
+  const raw = await up.evaluate(() => localStorage.getItem('sunnote:data:before-v1'));
+  if (raw === null) throw new Error('没有留下 sunnote:data:before-v1 快照');
+  if (raw !== JSON.stringify(v1Data)) throw new Error('快照不是原件 —— 被处理过了');
+});
+
+await step('设置页显示快照，并对上了两边的条数', async () => {
+  await up.goto(`${BASE}/#/settings`, { waitUntil: 'networkidle' });
+  const card = up.locator('section.card').filter({ has: up.locator('h2', { hasText: '升级前的备份' }) });
+  const text = await card.innerText();
+  // 快照里是 3 次练习 / 1 条笔记，当前数据应该一模一样 —— 数字对不上就是丢了东西
+  if (!text.includes('v1')) throw new Error(`该标明是 v1 的备份，实际：${text.replace(/\n/g, ' | ')}`);
+  if ((text.match(/3 次练习/g) ?? []).length !== 2) {
+    throw new Error(`快照和当前都该是 3 次练习，实际：${text.replace(/\n/g, ' | ')}`);
+  }
+});
+
+await step('下载的快照就是 v1 原件', async () => {
+  const dl = up.waitForEvent('download', { timeout: 10000 });
+  await up.getByRole('button', { name: '下载这份备份' }).click();
+  const file = `${SHOTS}/snapshot.json`;
+  await (await dl).saveAs(file);
+  const fs = await import('node:fs/promises');
+  const text = await fs.readFile(file, 'utf8');
+  if (text !== JSON.stringify(v1Data)) throw new Error('下载到的不是原件');
+  if (JSON.parse(text).version !== 1) throw new Error('下载到的备份不是 v1');
+});
+
+await step('升级后导出的数据里，v1 的每条记录都能逐条对上', async () => {
+  const dl = up.waitForEvent('download', { timeout: 10000 });
+  await up.getByRole('button', { name: '导出 JSON 备份' }).click();
+  const file = `${SHOTS}/after-upgrade.json`;
+  await (await dl).saveAs(file);
+  const fs = await import('node:fs/promises');
+  const after = JSON.parse(await fs.readFile(file, 'utf8'));
+
+  // 只数条数不够 —— 得确认是同一批记录，而且 subject 都加上了前缀
+  for (const old of v1Data.sessions) {
+    const found = after.sessions.find((x) => x.id === old.id);
+    if (!found) throw new Error(`练习 ${old.id}（${old.setName}）在升级后不见了`);
+    if (found.subject !== `toefl-${old.subject}`) {
+      throw new Error(`${old.id} 的 subject 该是 toefl-${old.subject}，实际 ${found.subject}`);
+    }
+    if (found.setName !== old.setName) throw new Error(`${old.id} 的套题名变了`);
+    if (JSON.stringify(found.blocks) !== JSON.stringify(old.blocks)) {
+      throw new Error(`${old.id} 的答题数据变了 —— 题型 key 和题数都不该动`);
+    }
+  }
+  if (after.notes[0]?.id !== 'old-n1' || after.notes[0]?.subject !== 'toefl-listening') {
+    throw new Error('笔记没迁移对');
+  }
+  if (after.vocab[0]?.word !== 'ubiquitous') throw new Error('生词丢了');
+  if (after.phrases[0]?.text !== 'It is worth noting that') throw new Error('句型丢了');
+  if (after.settings.theme !== 'dark') throw new Error('设置丢了');
+});
+
+await up.screenshot({ path: `${SHOTS}/16-upgrade-snapshot.png`, fullPage: true });
+
+await step('配置里没有的 subject 不会让仪表盘崩掉', async () => {
+  // 手工改过、或者来自更老版本的数据。崩了就是白屏，用户够不到导出按钮。
+  const ghostCtx = await browser.newContext({ viewport: { width: 1180, height: 900 } });
+  const crashes = [];
+  ghostCtx.on('page', (p) => p.on('pageerror', (e) => crashes.push(e.message)));
+  await ghostCtx.addInitScript(() => {
+    try {
+      localStorage.setItem('sunnote:data', JSON.stringify({
+        version: 2,
+        sessions: [{
+          id: 'ghost', subject: 'toefl-telepathy', setName: '不存在的科目', date: '2026-07-01',
+          createdAt: '2026-07-01T10:00:00.000Z', updatedAt: '2026-07-01T10:00:00.000Z',
+          blocks: [{ module: 'none', taskType: 'mystery', total: 10, wrong: 4 }], tasks: [],
+        }],
+        notes: [], vocab: [], phrases: [], settings: { theme: 'system' },
+      }));
+    } catch {
+      /* about:blank 上没有 localStorage，跳过 */
+    }
+  });
+  const ghost = await ghostCtx.newPage();
+  await ghost.goto(`${BASE}/#/`, { waitUntil: 'networkidle' });
+  // 仪表盘渲染得出来（薄弱题型那栏会拿这条数据去查配置），就说明兜底生效了
+  await ghost.getByRole('heading', { name: '仪表盘' }).waitFor({ timeout: 5000 });
+  await ghost.getByText('累计练习').waitFor({ timeout: 3000 });
+  if (crashes.length) throw new Error(`页面抛异常：${crashes[0]}`);
+  await ghostCtx.close();
+});
+
+await step('渲染崩溃时错误边界接住，并且还能把数据导出来', async () => {
+  // 错误边界是最后一道防线，没验过的保险本身就是隐患。
+  // 这里让 localeCompare 抛（仪表盘排最近笔记时会调），模拟一个没预料到的运行时错误。
+  const boomCtx = await browser.newContext({ viewport: { width: 1180, height: 900 } });
+  await boomCtx.addInitScript(() => {
+    try {
+      localStorage.setItem('sunnote:data', JSON.stringify({
+        version: 2,
+        sessions: [],
+        notes: [
+          { id: 'n1', subject: 'toefl-listening', title: '笔记一', body: '', tags: [], createdAt: '2026-07-01T00:00:00.000Z', updatedAt: '2026-07-01T00:00:00.000Z' },
+          { id: 'n2', subject: 'toefl-reading', title: '笔记二', body: '', tags: [], createdAt: '2026-07-02T00:00:00.000Z', updatedAt: '2026-07-02T00:00:00.000Z' },
+        ],
+        vocab: [], phrases: [], settings: { theme: 'system' },
+      }));
+    } catch {
+      /* about:blank 上没有 localStorage，跳过 */
+    }
+    // eslint-disable-next-line no-extend-native
+    String.prototype.localeCompare = function () {
+      throw new Error('模拟的渲染期崩溃');
+    };
+  });
+  const boom = await boomCtx.newPage();
+  await boom.goto(`${BASE}/#/`, { waitUntil: 'networkidle' });
+
+  await boom.getByText('应用出错了').waitFor({ timeout: 5000 });
+  // 最要紧的一句：告诉用户数据还在，别去清缓存
+  await boom.getByText(/你的数据还在浏览器里/).waitFor({ timeout: 3000 });
+
+  const dl = boom.waitForEvent('download', { timeout: 10000 });
+  await boom.getByRole('button', { name: '导出原始数据' }).click();
+  const file = `${SHOTS}/rescue.json`;
+  await (await dl).saveAs(file);
+  const fs = await import('node:fs/promises');
+  const rescued = JSON.parse(await fs.readFile(file, 'utf8'));
+  // 抢救导出必须绕开 React 状态直接读 localStorage —— 状态这时候已经不可信了
+  const current = JSON.parse(rescued.current);
+  if (current.notes.length !== 2) throw new Error(`抢救出来的数据该有 2 条笔记，实际 ${current.notes.length}`);
+  if (current.notes[0].title !== '笔记一') throw new Error('抢救出来的内容不对');
+
+  await boom.screenshot({ path: `${SHOTS}/17-error-boundary.png`, fullPage: true });
+  await boomCtx.close();
+});
+
+await upgradeCtx.close();
+
 await browser.close();
 
 console.log('\n' + '='.repeat(52));

@@ -19,9 +19,13 @@ export const SKILL_HEX: Record<Skill, { light: string; dark: string }> = {
   speaking: { light: '#4a3aa7', dark: '#9085e9' },  // violet
 };
 
-/** CSS 变量名，深浅两套值在 index.css 里一处切换。 */
+/**
+ * CSS 变量名，深浅两套值在 index.css 里一处切换。
+ * 和 subjectStyle 同样的兜底理由：历史数据里可能有配置里已经没有的 subject，
+ * 画得不完美也好过整页崩掉 —— 崩了用户就够不到导出按钮了。
+ */
 export function subjectVar(subject: Subject): string {
-  return `var(--subj-${SUBJECT_CONFIGS[subject].skill})`;
+  return `var(--subj-${SUBJECT_CONFIGS[subject]?.skill ?? 'listening'})`;
 }
 
 const SKILL_STYLES: Record<Skill, { text: string; bgSoft: string; border: string }> = {

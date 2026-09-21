@@ -46,6 +46,8 @@ export function isSubject(value: string): value is Subject {
 /** 跨考试的场合用全名，光写「听力」分不清是哪个考试的。 */
 export function subjectFullLabel(subject: Subject): string {
   const config = SUBJECT_CONFIGS[subject];
+  // 配置里找不到时退回原始键，而不是抛 —— 历史数据不该让整页崩掉
+  if (!config) return subject;
   return `${EXAM_LABELS[config.exam]}${config.label}`;
 }
 
@@ -55,7 +57,7 @@ export function subjectsOfExam(exam: Exam): SubjectConfig[] {
 }
 
 export function getTaskType(subject: Subject, taskTypeKey: string): TaskTypeConfig | undefined {
-  return SUBJECT_CONFIGS[subject].taskTypes.find((t) => t.key === taskTypeKey);
+  return SUBJECT_CONFIGS[subject]?.taskTypes.find((t) => t.key === taskTypeKey);
 }
 
 /** 题型的显示名。找不到配置时退回 key，避免历史数据渲染成空白。 */
