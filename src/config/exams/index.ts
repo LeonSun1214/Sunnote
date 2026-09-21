@@ -43,6 +43,12 @@ export function isSubject(value: string): value is Subject {
   return value in SUBJECT_CONFIGS;
 }
 
+/** 跨考试的场合用全名，光写「听力」分不清是哪个考试的。 */
+export function subjectFullLabel(subject: Subject): string {
+  const config = SUBJECT_CONFIGS[subject];
+  return `${EXAM_LABELS[config.exam]}${config.label}`;
+}
+
 /** 某个考试下的四科，按考试顺序。 */
 export function subjectsOfExam(exam: Exam): SubjectConfig[] {
   return SKILL_ORDER.map((skill) => SUBJECT_CONFIGS[`${exam}-${skill}` as Subject]);

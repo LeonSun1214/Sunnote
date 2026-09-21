@@ -435,6 +435,23 @@ await step('阅读的题型进入薄弱题型排行', async () => {
   const bars = page.locator('section').filter({ has: page.locator('h2', { hasText: '薄弱题型' }) });
   await bars.getByText('词汇填空').waitFor({ timeout: 3000 });
 });
+await step('概览按考试分成两组，每组四科', async () => {
+  for (const [exam, label] of [
+    ['toefl', '托福'],
+    ['ielts', '雅思'],
+  ]) {
+    const group = page
+      .locator('section')
+      .filter({ has: page.locator('h2', { hasText: new RegExp(`^${label}$`) }) });
+    const cards = group.locator(`a[href*="#/${exam}-"]`);
+    const n = await cards.count();
+    if (n !== 4) throw new Error(`${label}那组应有 4 张科目卡，实际 ${n}`);
+  }
+});
+await step('薄弱题型排行里科目名带考试前缀，不然两个考试的「阅读」分不清', async () => {
+  const bars = page.locator('section').filter({ has: page.locator('h2', { hasText: '薄弱题型' }) });
+  await bars.getByText('托福阅读').first().waitFor({ timeout: 3000 });
+});
 await page.screenshot({ path: `${SHOTS}/12-dashboard-full.png`, fullPage: true });
 
 console.log('— 导出导入往返 —');
