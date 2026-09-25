@@ -308,3 +308,30 @@ describe('练习记录里的数组字段归一化', () => {
     expect(sessionAccuracy(out.sessions[0])).toBeCloseTo(0.7);
   });
 });
+
+describe('settings.plans 在入口归一化', () => {
+  it('不合法的计划不会进状态，合法的原样保留，其它设置不受影响', () => {
+    const out = migrate({
+      version: DATA_VERSION,
+      settings: {
+        theme: 'dark',
+        plans: { toefl: { date: '2026-10-18', target: 105 }, ielts: { date: 'nope', target: 12 } },
+      },
+    });
+    expect(out.settings.theme).toBe('dark');
+    expect(out.settings.plans).toEqual({ toefl: { date: '2026-10-18', target: 105 }, ielts: { target: 9 } });
+  });
+
+  it('没有计划时 settings 里就没有 plans 这个键，和空数据一致', () => {
+    expect(migrate({ settings: { plans: 'junk' } })).toEqual(emptyData());
+    expect(migrate({ settings: { plans: { toefl: {} } } }).settings).not.toHaveProperty('plans');
+  });
+
+  it('导入合并时以备份里的计划为准，和其它设置字段一个规则', () => {
+    const current: AppData = { ...emptyData(), settings: { theme: 'system', plans: { toefl: { target: 100 } } } };
+    const incoming = { ...emptyData(), settings: { theme: 'system', plans: { ielts: { date: '2026-10-18' } } } };
+    expect(applyImport(current, incoming, 'merge').settings.plans).toEqual({ ielts: { date: '2026-10-18' } });
+    // 备份里根本没有 plans 时，本地的留着
+    expect(applyImport(current, emptyData(), 'merge').settings.plans).toEqual({ toefl: { target: 100 } });
+  });
+});

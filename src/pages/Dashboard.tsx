@@ -21,8 +21,9 @@ import {
   studyStreak,
   weakestTaskTypes,
 } from '../utils/stats';
-import type { Exam, Session } from '../types';
+import type { AppSettings, Exam, Session } from '../types';
 import { daysSince, formatDate, relativeTime } from '../utils/date';
+import { formatTarget, nearestExamPlan } from '../utils/plan';
 import { subjectStyle, cx } from '../utils/ui';
 
 /** 超过这么多天没导出就提醒备份 —— 浏览器数据清掉就没了。 */
@@ -55,6 +56,7 @@ export function Dashboard() {
     return (
       <div className="mx-auto max-w-3xl space-y-4">
         <Header />
+        <ExamCountdown plans={settings.plans} />
         <EmptyState
           title="从录第一次练习开始"
           hint="托福或雅思都行。选一科进去填这套题错了几个，正确率会自动算出来。每一科都有自己的错题笔记区，用来攒知识点。"
@@ -80,6 +82,7 @@ export function Dashboard() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <Header />
+      <ExamCountdown plans={settings.plans} />
 
       {needsBackup && (
         <Link
@@ -222,6 +225,40 @@ function Header() {
         托福（新版 2026 自适应）· 雅思（Academic）
       </p>
     </header>
+  );
+}
+
+/**
+ * 最近一场考试的倒计时，来自考试计划页。没填日期、或日期已过就什么都不渲染 ——
+ * 页面顶部不该留一块「还没设置考试日期」的空壳。
+ */
+function ExamCountdown({ plans }: { plans: AppSettings['plans'] }) {
+  const upcoming = nearestExamPlan(plans);
+  if (!upcoming) return null;
+  const { exam, days, date, target } = upcoming;
+  const examName = EXAM_LABELS[exam];
+
+  return (
+    <Link
+      to="/plan"
+      className="card flex items-end justify-between gap-3 transition hover:border-slate-300 dark:hover:border-slate-700"
+    >
+      <div>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{days === 0 ? `${examName}考试` : `距${examName}考试`}</p>
+        <p className="mt-1 text-2xl font-semibold tabular-nums">
+          {days === 0 ? '今天' : days}
+          {days > 0 && <span className="ml-0.5 text-xs font-normal text-slate-500 dark:text-slate-400">天</span>}
+        </p>
+      </div>
+      <div className="text-right text-xs text-slate-500 dark:text-slate-400">
+        <p>{formatDate(date)}</p>
+        {target !== undefined && (
+          <p className="mt-0.5">
+            目标 <span className="font-medium text-slate-900 dark:text-slate-100">{formatTarget(exam, target)}</span>
+          </p>
+        )}
+      </div>
+    </Link>
   );
 }
 

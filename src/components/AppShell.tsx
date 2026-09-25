@@ -15,6 +15,7 @@ const SKILL_ICONS: Record<Skill, string> = {
 const LIBRARY_NAV = [
   { to: '/vocab', label: '生词本', icon: '🔤' },
   { to: '/phrases', label: '句型库', icon: '🧩' },
+  { to: '/plan', label: '考试计划', icon: '📅' },
   { to: '/settings', label: '设置', icon: '⚙︎' },
 ];
 
@@ -125,9 +126,24 @@ export function AppShell() {
             </NavLink>
           ))}
         </div>
-        <NavLink to="/settings" className="shrink-0 text-sm text-slate-500 dark:text-slate-400">
-          ⚙︎
-        </NavLink>
+        {/* 移动端没有别的路能到计划页，所以在这里给个入口。两个图标看着还是一个字，
+            但可点区域拉到 44px；负外边距吃掉多出来的高度，顶栏不会因此变高。 */}
+        <div className="-my-2 -mr-3 flex shrink-0 items-center">
+          <NavLink
+            to="/plan"
+            aria-label="考试计划"
+            className="flex h-11 w-11 items-center justify-center text-sm text-slate-500 dark:text-slate-400"
+          >
+            📅
+          </NavLink>
+          <NavLink
+            to="/settings"
+            aria-label="设置"
+            className="flex h-11 w-11 items-center justify-center text-sm text-slate-500 dark:text-slate-400"
+          >
+            ⚙︎
+          </NavLink>
+        </div>
       </header>
 
       <main className="min-w-0 flex-1 px-4 py-5 pb-24 lg:px-8 lg:py-8 lg:pb-8">

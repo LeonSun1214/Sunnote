@@ -1,4 +1,5 @@
-import type { AppData, Session } from '../types';
+import type { AppData, AppSettings, Session } from '../types';
+import { normalizePlans } from '../utils/plan';
 
 const STORAGE_KEY = 'sunnote:data';
 
@@ -70,8 +71,21 @@ export function migrate(raw: unknown): AppData {
     notes: withSubject(data.notes),
     vocab: Array.isArray(data.vocab) ? data.vocab : [],
     phrases: Array.isArray(data.phrases) ? data.phrases : [],
-    settings: { ...base.settings, ...(data.settings ?? {}) },
+    settings: normalizeSettings({ ...base.settings, ...(data.settings ?? {}) }),
   };
+}
+
+/**
+ * settings 里的考试计划同样来自不可信来源，也在入口修一次：
+ * 日期不合法就丢、目标分收进量程、空的考试去掉。其它设置字段原样保留。
+ * 这是可选的增量字段，老数据里没有它也完全合法，所以不用升 DATA_VERSION。
+ */
+function normalizeSettings(settings: AppSettings): AppSettings {
+  const plans = normalizePlans(settings.plans);
+  const result: AppSettings = { ...settings };
+  if (plans) result.plans = plans;
+  else delete result.plans;
+  return result;
 }
 
 /** 迁移前快照的 key 前缀，后面接源数据的版本号。 */

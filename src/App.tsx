@@ -8,6 +8,7 @@ import { NoteEditorPage } from './pages/subject/NoteEditorPage';
 import { VocabPage } from './pages/VocabPage';
 import { PhrasePage } from './pages/PhrasePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { PlanPage } from './pages/PlanPage';
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="vocab" element={<VocabPage />} />
         <Route path="phrases" element={<PhrasePage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="plan" element={<PlanPage />} />
         <Route path=":subject">
           <Route index element={<SubjectPage />} />
           <Route path="new" element={<SessionForm />} />
