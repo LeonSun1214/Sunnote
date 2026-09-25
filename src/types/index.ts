@@ -115,10 +115,27 @@ export interface PhraseEntry {
 
 export type ThemeSetting = 'light' | 'dark' | 'system';
 
+/**
+ * 一场考试的计划：考试日期和目标分，两项都可选，没填就是没有。
+ * 目标分的量程按考试不同：托福 0–120 总分整数，雅思 Band 0–9 半档。
+ * 量程和归一化在 utils/plan.ts，这里只存值。
+ */
+export interface ExamPlan {
+  /** 本地日期 YYYY-MM-DD，和 <input type="date"> 一致。 */
+  date?: string;
+  target?: number;
+}
+
 export interface AppSettings {
   /** 上次导出备份的时间，用来提醒备份。 */
   lastExportedAt?: string;
   theme: ThemeSetting;
+  /**
+   * 考试计划，按考试分开存。放在 settings 里而不是单开一个顶层字段：
+   * 它是「我的设置」而不是记录，跟着 JSON 备份一起走，导入时按 settings 的规则合并。
+   * 没填任何计划时这个键不存在。
+   */
+  plans?: Partial<Record<Exam, ExamPlan>>;
 }
 
 /** 整个应用的持久化状态。 */
