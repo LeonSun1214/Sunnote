@@ -8,6 +8,8 @@ import { cx } from '../../utils/ui';
 import { NoteForm } from '../notes/NoteForm';
 import { VocabForm } from '../vocab/VocabForm';
 import { PhraseForm, PHRASE_CATEGORIES } from '../phrases/PhraseForm';
+import { VocabCard } from '../vocab/VocabCard';
+import { PhraseCard } from '../phrases/PhraseCard';
 
 export type PanelTab = 'notes' | 'vocab' | 'phrases';
 
@@ -341,7 +343,7 @@ function NotesTab({ session, config, presetTaskType }: { session: Session; confi
 /* ───────────────────────── 生词 ───────────────────────── */
 
 function VocabTab({ session }: { session: Session }) {
-  const { data, addVocab, removeVocab } = useAppData();
+  const { data, addVocab, updateVocab, removeVocab } = useAppData();
   const vocab = useMemo(
     () => data.vocab.filter((v) => v.sessionId === session.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [data.vocab, session.id],
@@ -361,26 +363,18 @@ function VocabTab({ session }: { session: Session }) {
       {vocab.length > 0 && (
         <section>
           <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">这套题的生词 · {vocab.length}</p>
-          <ul className="space-y-1.5">
+          {/* 和全局生词本同一份卡片：能编辑、能标熟练度。来源永远是这套题，不显示也不给改 */}
+          <ul className="space-y-2">
             {vocab.map((v) => (
-              <li
+              <VocabCard
                 key={v.id}
-                className="flex items-start justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{v.word}</p>
-                  {v.meaning && <p className="text-xs text-slate-500 dark:text-slate-400">{v.meaning}</p>}
-                  {v.example && <p className="mt-0.5 text-[11px] italic text-slate-400 dark:text-slate-500">{v.example}</p>}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeVocab(v.id)}
-                  aria-label={`删除生词 ${v.word}`}
-                  className="shrink-0 text-slate-400 transition hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
-                >
-                  ×
-                </button>
-              </li>
+                entry={v}
+                compact
+                showSource={false}
+                onSetFamiliarity={(familiarity) => updateVocab(v.id, { familiarity })}
+                onSave={(patch) => updateVocab(v.id, patch)}
+                onRemove={() => removeVocab(v.id)}
+              />
             ))}
           </ul>
         </section>
@@ -392,13 +386,12 @@ function VocabTab({ session }: { session: Session }) {
 /* ───────────────────────── 句型 ───────────────────────── */
 
 function PhrasesTab({ session }: { session: Session }) {
-  const { data, addPhrase, removePhrase } = useAppData();
+  const { data, addPhrase, updatePhrase, removePhrase } = useAppData();
   const [category, setCategory] = useState<PhraseCategory>('grammar');
   const phrases = useMemo(
     () => data.phrases.filter((p) => p.sessionId === session.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [data.phrases, session.id],
   );
-  const label = (c: PhraseCategory) => PHRASE_CATEGORIES.find((x) => x.key === c)?.label ?? c;
 
   return (
     <div className="space-y-4">
@@ -426,28 +419,17 @@ function PhrasesTab({ session }: { session: Session }) {
       {phrases.length > 0 && (
         <section>
           <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">这套题的句型 · {phrases.length}</p>
-          <ul className="space-y-1.5">
+          {/* 和全局句型库同一份卡片。面板里的列表混分类，所以把分类标出来 */}
+          <ul className="space-y-2">
             {phrases.map((p) => (
-              <li
+              <PhraseCard
                 key={p.id}
-                className="flex items-start justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm">{p.text}</p>
-                  <p className="mt-0.5 flex flex-wrap gap-x-2 text-[11px] text-slate-400 dark:text-slate-500">
-                    <span>{label(p.category)}</span>
-                    {p.usage && <span>{p.usage}</span>}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removePhrase(p.id)}
-                  aria-label="删除这条句型"
-                  className="shrink-0 text-slate-400 transition hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
-                >
-                  ×
-                </button>
-              </li>
+                phrase={p}
+                compact
+                showCategory
+                onSave={(patch) => updatePhrase(p.id, patch)}
+                onRemove={() => removePhrase(p.id)}
+              />
             ))}
           </ul>
         </section>

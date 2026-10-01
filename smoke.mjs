@@ -176,6 +176,23 @@ await step('切到生词标签录一个词，来源自动填', async () => {
   await countChip('生词\\s*1').waitFor({ timeout: 3000 });
 });
 
+await step('面板里的生词能编辑：改释义保存，来源不给改，能标熟练度', async () => {
+  // 用户报的 bug：录完想改释义，行上只有一个 ×。现在和全局生词本共用同一份卡片。
+  await panel().getByRole('button', { name: '编辑 ubiquitous' }).click();
+  const meaning = panel().getByLabel('编辑释义');
+  if ((await meaning.inputValue()) !== '无处不在的') throw new Error('编辑态没带上原释义');
+  // 来源永远是这套题，编辑态不该出现来源输入框
+  if ((await panel().getByLabel('编辑来源').count()) !== 0) throw new Error('面板里不该让改来源');
+  await meaning.fill('无处不在的；普遍存在的');
+  await panel().getByRole('button', { name: '保存', exact: true }).click();
+  await panel().getByText('无处不在的；普遍存在的').waitFor({ timeout: 3000 });
+  // 熟练度四档在面板里也该有 —— 刚录完顺手标一下最自然
+  await panel().getByRole('button', { name: '眼熟' }).click();
+  if ((await panel().getByRole('button', { name: '眼熟' }).getAttribute('aria-pressed')) !== 'true') {
+    throw new Error('点了「眼熟」应该被选中');
+  }
+});
+
 await step('切到句型标签录一条写作句型', async () => {
   await panel().getByRole('button', { name: /^句型/ }).click();
   await panel().getByRole('button', { name: '写作句型' }).click();
@@ -184,6 +201,18 @@ await step('切到句型标签录一条写作句型', async () => {
   await panel().getByText('这套题的句型 · 1').waitFor({ timeout: 3000 });
   await countChip('句型\\s*1').waitFor({ timeout: 3000 });
 });
+await step('面板里的句型能编辑：改文本保存，行上标着分类', async () => {
+  await panel().getByRole('button', { name: '编辑这条' }).click();
+  const text = panel().getByLabel('编辑句型');
+  if ((await text.inputValue()) !== 'It is worth noting that') throw new Error('编辑态没带上原文本');
+  await text.fill('It is worth noting that (edited)');
+  await panel().getByRole('button', { name: '保存', exact: true }).click();
+  const row = panel().locator('li').filter({ hasText: 'It is worth noting that (edited)' });
+  await row.waitFor({ timeout: 3000 });
+  // 面板里的列表混分类，行上要标出来；全局页面按分类筛过了所以不标
+  await row.getByText('写作句型').waitFor({ timeout: 3000 });
+});
+
 await step('拖左边缘调宽：拖动生效、刷新还在、方向键微调、双击恢复', async () => {
   const handle = () => panel().getByRole('separator', { name: '调整面板宽度' });
   const widthOf = () => panel().evaluate((el) => Math.round(el.getBoundingClientRect().width));
@@ -239,6 +268,7 @@ await step('面板里录的生词在全局生词本里，来源是套题名', as
   await row.waitFor({ timeout: 3000 });
   const text = await row.innerText();
   if (!text.includes('官方模考 2')) throw new Error(`生词本里应显示来源「官方模考 2」，实际：${text.replace(/\n/g, ' | ')}`);
+  if (!text.includes('无处不在的；普遍存在的')) throw new Error('面板里改的释义没同步到全局生词本');
 });
 
 await step('科目笔记列表里那条笔记带「来自 官方模考 2」', async () => {
@@ -255,10 +285,10 @@ await step('从面板里删掉刚才录的生词和句型（× 按钮）', async
   await page.getByText('官方模考 2').first().click();
   await page.waitForURL(/session\//, { timeout: 5000 });
   await countChip('生词\\s*1').click();
-  await panel().getByRole('button', { name: /删除生词 ubiquitous/ }).click();
+  await panel().getByRole('button', { name: '删除 ubiquitous' }).click();
   await countChip('生词\\s*0').waitFor({ timeout: 3000 });
   await panel().getByRole('button', { name: /^句型/ }).click();
-  await panel().getByRole('button', { name: '删除这条句型' }).click();
+  await panel().getByRole('button', { name: '删除这条' }).click();
   await countChip('句型\\s*0').waitFor({ timeout: 3000 });
   await panel().getByRole('button', { name: '关闭面板' }).click();
 });
