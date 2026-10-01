@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { PhraseCategory, Session, SubjectConfig } from '../../types';
 import { useAppData } from '../../store/hooks';
 import { taskTypeLabel } from '../../config/exams';
@@ -18,6 +19,106 @@ export const PANEL_TABS: { key: PanelTab; label: string; icon: string }[] = [
 
 export function isPanelTab(value: string | null): value is PanelTab {
   return value === 'notes' || value === 'vocab' || value === 'phrases';
+}
+
+/* ───────────────────────── 宽度：拖左边缘调 ───────────────────────── */
+
+/** 和原先写死的 w-96 一致。 */
+const DEFAULT_PANEL_WIDTH = 384;
+/** 再窄表单输入框就挤不下了。 */
+const MIN_PANEL_WIDTH = 280;
+/** 设备相关的界面偏好，单独存，不进 AppData —— 不该跟着 JSON 备份走到别的设备上。 */
+const PANEL_WIDTH_KEY = 'sunnote:ui:panelWidth';
+
+/** 上限给主内容留最少 360px：视口 − 侧栏 224 − 内边距和间距 − 360，再封顶 720。 */
+function maxPanelWidth(): number {
+  return Math.max(MIN_PANEL_WIDTH, Math.min(720, window.innerWidth - 224 - 88 - 360));
+}
+
+function clampWidth(w: number): number {
+  return Math.round(Math.min(maxPanelWidth(), Math.max(MIN_PANEL_WIDTH, w)));
+}
+
+function readStoredWidth(): number {
+  try {
+    const n = Number(localStorage.getItem(PANEL_WIDTH_KEY));
+    return Number.isFinite(n) && n > 0 ? clampWidth(n) : DEFAULT_PANEL_WIDTH;
+  } catch {
+    return DEFAULT_PANEL_WIDTH;
+  }
+}
+
+/**
+ * 桌面端面板宽度。拖左边缘改、方向键微调、双击 / Home 恢复默认。
+ * 只影响桌面端 —— 手机上是 fixed inset-0 全屏，宽度不起作用。
+ * 用 pointer capture：指针离开把手也继续跟着动，松开才结束。
+ */
+function usePanelWidth() {
+  const [width, setWidth] = useState(() => (typeof window === 'undefined' ? DEFAULT_PANEL_WIDTH : readStoredWidth()));
+  const drag = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const commit = useCallback((w: number) => {
+    const next = clampWidth(w);
+    setWidth(next);
+    try {
+      localStorage.setItem(PANEL_WIDTH_KEY, String(next));
+    } catch {
+      /* 存不上就只在这次会话里生效 */
+    }
+  }, []);
+
+  // 窗口缩小时把宽度重新夹一下，别让主内容被挤没
+  useEffect(() => {
+    const onResize = () => setWidth((w) => clampWidth(w));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const onPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      drag.current = { startX: e.clientX, startWidth: width };
+      e.currentTarget.setPointerCapture(e.pointerId);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    },
+    [width],
+  );
+  const onPointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    // 面板在右边，把手往左拖 = 变宽
+    setWidth(clampWidth(drag.current.startWidth + (drag.current.startX - e.clientX)));
+  }, []);
+  const onPointerUp = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (!drag.current) return;
+      commit(drag.current.startWidth + (drag.current.startX - e.clientX));
+      drag.current = null;
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    },
+    [commit],
+  );
+  const onKeyDown = useCallback(
+    (e: ReactKeyboardEvent<HTMLDivElement>) => {
+      const step = e.shiftKey ? 64 : 16;
+      if (e.key === 'ArrowLeft') commit(width + step);
+      else if (e.key === 'ArrowRight') commit(width - step);
+      else if (e.key === 'Home') commit(DEFAULT_PANEL_WIDTH);
+      else return;
+      e.preventDefault();
+    },
+    [commit, width],
+  );
+  const reset = useCallback(() => commit(DEFAULT_PANEL_WIDTH), [commit]);
+
+  return {
+    width,
+    min: MIN_PANEL_WIDTH,
+    max: typeof window === 'undefined' ? 720 : maxPanelWidth(),
+    handlers: { onPointerDown, onPointerMove, onPointerUp, onKeyDown, onDoubleClick: reset },
+  };
 }
 
 interface Props {
@@ -53,17 +154,39 @@ export function SessionPanel({ session, config, tab, presetTaskType, onTabChange
     [data.phrases, session.id],
   );
   const counts: Record<PanelTab, number> = { notes: notes.length, vocab: vocab.length, phrases: phrases.length };
+  const { width, min, max, handlers } = usePanelWidth();
 
   return (
     <aside
       aria-label={`${session.setName} 的笔记面板`}
+      // 宽度走 CSS 变量而不是直接 style.width：手机上 inset-0 要赢，变量只在 lg: 的类里被读
+      style={{ '--panel-w': `${width}px` } as CSSProperties}
       className={cx(
         // 手机：全屏覆盖
         'fixed inset-0 z-20 flex flex-col bg-slate-50 dark:bg-slate-950',
-        // 桌面：并排，跟着滚动保持可见
-        'lg:sticky lg:top-8 lg:inset-auto lg:z-auto lg:max-h-[calc(100vh-4rem)] lg:w-96 lg:shrink-0 lg:self-start lg:rounded-xl lg:border lg:border-slate-200 lg:bg-white lg:shadow-sm lg:dark:border-slate-800 lg:dark:bg-slate-900',
+        // 桌面：并排，跟着滚动保持可见；宽度可拖
+        'lg:sticky lg:top-8 lg:inset-auto lg:z-auto lg:max-h-[calc(100vh-4rem)] lg:w-[var(--panel-w)] lg:shrink-0 lg:self-start lg:rounded-xl lg:border lg:border-slate-200 lg:bg-white lg:shadow-sm lg:dark:border-slate-800 lg:dark:bg-slate-900',
       )}
     >
+      {/* 拖拽把手：桌面端面板的左边缘。手机是全屏，没有宽度可调 */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整面板宽度"
+        aria-valuenow={width}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        tabIndex={0}
+        title="拖动调宽 · 双击恢复默认"
+        {...handlers}
+        className="group absolute inset-y-0 -left-1 hidden w-2 cursor-col-resize outline-none lg:block"
+      >
+        <span
+          aria-hidden
+          className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-transparent transition group-hover:bg-slate-400 group-focus-visible:bg-slate-500 dark:group-hover:bg-slate-500 dark:group-focus-visible:bg-slate-400"
+        />
+      </div>
+
       <header className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{session.setName}</p>
