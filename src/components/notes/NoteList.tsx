@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Note, Subject } from '../../types';
 import { taskTypeLabel } from '../../config/exams';
+import { useAppData } from '../../store/hooks';
 import { relativeTime } from '../../utils/date';
 import { EmptyState } from '../EmptyState';
 import { cx } from '../../utils/ui';
@@ -12,7 +13,10 @@ interface Props {
 }
 
 export function NoteList({ subject, notes }: Props) {
+  const { data } = useAppData();
   const [query, setQuery] = useState('');
+  // 每条笔记显示来自哪套题 —— 用户要能一眼看出这条错题是哪次练习的
+  const sessionName = (id?: string) => (id ? data.sessions.find((s) => s.id === id)?.setName : undefined);
   const [activeTag, setActiveTag] = useState<string | null>(null);
 
   const allTags = useMemo(() => {
@@ -101,6 +105,11 @@ export function NoteList({ subject, notes }: Props) {
                   <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{note.body}</p>
                 )}
                 <div className="mt-2 flex flex-wrap gap-1.5">
+                  {sessionName(note.sessionId) && (
+                    <span className="chip bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      来自 {sessionName(note.sessionId)}
+                    </span>
+                  )}
                   {note.taskType && (
                     <span className="chip bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                       {taskTypeLabel(subject, note.taskType)}

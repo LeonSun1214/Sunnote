@@ -3,19 +3,13 @@ import type { PhraseCategory, PhraseEntry } from '../types';
 import { useAppData } from '../store/hooks';
 import { EmptyState } from '../components/EmptyState';
 import { cx } from '../utils/ui';
+import { PHRASE_CATEGORIES as CATEGORIES, PhraseForm } from '../components/phrases/PhraseForm';
 
-const CATEGORIES: { key: PhraseCategory; label: string; hint: string }[] = [
-  { key: 'grammar', label: '语法点', hint: '托福写作的 Build a Sentence 直接考语法结构，雅思写作的 Grammatical Range 也看这个。' },
-  { key: 'transition', label: '连接词', hint: '转折、递进、举例、总结，听力抓信号词也靠它。' },
-  { key: 'writing', label: '写作句型', hint: '托福 Email 的开头结尾、学术讨论里回应同学观点；雅思 Task 1 描述趋势、Task 2 亮观点的说法。' },
-  { key: 'speaking', label: '口语句型', hint: '托福 Take an Interview 45 秒没准备时间，雅思 Part 2 只有 1 分钟 —— 都得有现成的起手句。' },
-];
 
 export function PhrasePage() {
   const { data, addPhrase, updatePhrase, removePhrase } = useAppData();
   const [active, setActive] = useState<PhraseCategory>('grammar');
   const [query, setQuery] = useState('');
-  const [draft, setDraft] = useState({ text: '', usage: '', example: '' });
 
   const counts = useMemo(() => {
     const map = new Map<PhraseCategory, number>();
@@ -30,17 +24,6 @@ export function PhrasePage() {
       .filter((p) => !q || p.text.toLowerCase().includes(q) || (p.usage ?? '').toLowerCase().includes(q))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [data.phrases, active, query]);
-
-  const handleAdd = () => {
-    if (!draft.text.trim()) return;
-    addPhrase({
-      text: draft.text.trim(),
-      category: active,
-      usage: draft.usage.trim() || undefined,
-      example: draft.example.trim() || undefined,
-    });
-    setDraft({ text: '', usage: '', example: '' });
-  };
 
   const activeConfig = CATEGORIES.find((c) => c.key === active)!;
 
@@ -74,31 +57,8 @@ export function PhrasePage() {
 
       <p className="text-xs text-slate-500 dark:text-slate-400">{activeConfig.hint}</p>
 
-      <section className="card space-y-2">
-        <textarea
-          className="input resize-y"
-          rows={2}
-          placeholder={`新的${activeConfig.label}`}
-          value={draft.text}
-          onChange={(e) => setDraft({ ...draft, text: e.target.value })}
-        />
-        <div className="grid gap-2 sm:grid-cols-2">
-          <input
-            className="input"
-            placeholder="用法说明（选填）"
-            value={draft.usage}
-            onChange={(e) => setDraft({ ...draft, usage: e.target.value })}
-          />
-          <input
-            className="input"
-            placeholder="例句（选填）"
-            value={draft.example}
-            onChange={(e) => setDraft({ ...draft, example: e.target.value })}
-          />
-        </div>
-        <button type="button" className="btn-primary w-full" onClick={handleAdd} disabled={!draft.text.trim()}>
-          + 加进{activeConfig.label}
-        </button>
+      <section className="card">
+        <PhraseForm category={active} onAdd={addPhrase} />
       </section>
 
       {data.phrases.length > 0 && (

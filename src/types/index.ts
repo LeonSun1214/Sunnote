@@ -93,8 +93,10 @@ export interface VocabEntry {
   word: string;
   meaning: string;
   example?: string;
-  /** 来源套题。 */
+  /** 来源套题。给人看的文本。 */
   source?: string;
+  /** 从哪次练习的面板里录的。source 是显示用的，这个是结构化关联。 */
+  sessionId?: string;
   familiarity: Familiarity;
   createdAt: string;
   updatedAt: string;
@@ -109,6 +111,8 @@ export interface PhraseEntry {
   usage?: string;
   example?: string;
   source?: string;
+  /** 同 VocabEntry.sessionId。 */
+  sessionId?: string;
   createdAt: string;
   updatedAt: string;
 }
