@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Familiarity, VocabEntry } from '../types';
 import { useAppData } from '../store/hooks';
 import { EmptyState } from '../components/EmptyState';
+import { VocabForm } from '../components/vocab/VocabForm';
 import { cx } from '../utils/ui';
 
 const FAMILIARITY: { value: Familiarity; label: string; className: string }[] = [
@@ -17,7 +18,6 @@ export function VocabPage() {
   const [filter, setFilter] = useState<Familiarity | null>(null);
   const [quizMode, setQuizMode] = useState(false);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
-  const [draft, setDraft] = useState({ word: '', meaning: '', example: '', source: '' });
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -33,18 +33,6 @@ export function VocabPage() {
     return map;
   }, [data.vocab]);
 
-  const handleAdd = () => {
-    if (!draft.word.trim()) return;
-    addVocab({
-      word: draft.word.trim(),
-      meaning: draft.meaning.trim(),
-      example: draft.example.trim() || undefined,
-      source: draft.source.trim() || undefined,
-      familiarity: 0,
-    });
-    setDraft({ word: '', meaning: '', example: '', source: draft.source });
-  };
-
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <header>
@@ -54,40 +42,8 @@ export function VocabPage() {
         </p>
       </header>
 
-      <section className="card space-y-2">
-        <div className="grid gap-2 sm:grid-cols-2">
-          <input
-            className="input"
-            placeholder="单词"
-            value={draft.word}
-            onChange={(e) => setDraft({ ...draft, word: e.target.value })}
-            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-          />
-          <input
-            className="input"
-            placeholder="释义"
-            value={draft.meaning}
-            onChange={(e) => setDraft({ ...draft, meaning: e.target.value })}
-            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-          />
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <input
-            className="input"
-            placeholder="例句（选填）"
-            value={draft.example}
-            onChange={(e) => setDraft({ ...draft, example: e.target.value })}
-          />
-          <input
-            className="input"
-            placeholder="来源，如 官方模考 2（选填）"
-            value={draft.source}
-            onChange={(e) => setDraft({ ...draft, source: e.target.value })}
-          />
-        </div>
-        <button type="button" className="btn-primary w-full" onClick={handleAdd} disabled={!draft.word.trim()}>
-          + 加入生词本
-        </button>
+      <section className="card">
+        <VocabForm onAdd={(draft) => addVocab({ ...draft, familiarity: 0 })} />
       </section>
 
       {data.vocab.length === 0 ? (

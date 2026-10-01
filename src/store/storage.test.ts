@@ -308,3 +308,20 @@ describe('练习记录里的数组字段归一化', () => {
     expect(sessionAccuracy(out.sessions[0])).toBeCloseTo(0.7);
   });
 });
+
+describe('生词 / 句型的 sessionId 关联', () => {
+  // 从练习详情的面板里录入时会写上 sessionId。migrate 对 vocab / phrases 是原样透传，
+  // 但这里还是钉一条 —— 将来谁给它们也加归一化，别把这个字段吃掉。
+  it('migrate 原样保留 vocab / phrase 上的 sessionId', () => {
+    const out = migrate({
+      version: DATA_VERSION,
+      sessions: [],
+      notes: [],
+      vocab: [{ id: 'v1', word: 'ubiquitous', meaning: '无处不在的', familiarity: 0, sessionId: 's-42', source: 'TPO 60' }],
+      phrases: [{ id: 'p1', text: 'It is worth noting that', category: 'writing', sessionId: 's-42' }],
+    });
+    expect(out.vocab[0].sessionId).toBe('s-42');
+    expect(out.vocab[0].source).toBe('TPO 60');
+    expect(out.phrases[0].sessionId).toBe('s-42');
+  });
+});

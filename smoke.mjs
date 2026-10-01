@@ -125,21 +125,118 @@ await step('详情页总正确率 = 26/35 = 74%', () =>
   page.getByText('74%').first().waitFor({ timeout: 3000 }));
 await page.screenshot({ path: `${SHOTS}/04-session-detail.png`, fullPage: true });
 
-console.log('— 从错题跳去记笔记 —');
-await step('「记笔记」链接带上练习和题型上下文', async () => {
-  await page.getByRole('link', { name: '记笔记' }).first().click();
-  await page.waitForURL(/#\/toefl-listening\/note\/new/, { timeout: 5000 });
-  await page.getByText('来自 官方模考 2').waitFor({ timeout: 3000 });
+console.log('— 详情页右侧面板：笔记 / 生词 / 句型就地记 —');
+/** 面板是个 <aside>，隐式 role 是 complementary。 */
+const panel = () => page.getByRole('complementary', { name: /官方模考 2 的笔记面板/ });
+/** 详情页头部那行计数 chip。限定在 main header 里，避开面板自己的标签按钮。 */
+const countChip = (label) => page.locator('main header').getByRole('button', { name: new RegExp(label) });
+
+await step('点「记笔记」打开面板而不是跳页，题型预填', async () => {
+  await page.getByRole('button', { name: '记笔记' }).first().click();
+  // 还在详情页，只是多了 ?panel=notes&taskType=
+  await page.waitForURL(/session\/[^/?]+\?.*panel=notes/, { timeout: 5000 });
+  if (!page.url().includes('taskType=')) throw new Error('从题型旁打开的面板应该带 taskType');
+  await panel().waitFor({ timeout: 3000 });
+  // 预填的题型以 chip 显示在新笔记表单上方
+  await panel().getByText('新笔记').waitFor({ timeout: 3000 });
 });
-await step('写笔记并保存', async () => {
-  await page.getByPlaceholder(/转折信号词/).fill('学术讲座的转折信号词');
-  await page.locator('textarea').first().fill('错在哪：however 后面才是重点，我盯着前半句了。\n\n下次：听到 but / however / actually 立刻记后半句。');
-  await page.getByRole('button', { name: '+ 没听懂' }).click();
-  await page.getByRole('button', { name: '保存', exact: true }).click();
-  await page.waitForURL(/tab=notes/, { timeout: 5000 });
-  await page.getByText('学术讲座的转折信号词').waitFor({ timeout: 3000 });
+
+await step('在面板里写笔记保存，列表和计数立刻更新', async () => {
+  await panel().getByPlaceholder(/转折信号词/).fill('学术讲座的转折信号词');
+  await panel().locator('textarea').first().fill('错在哪：however 后面才是重点，我盯着前半句了。\n\n下次：听到 but / however / actually 立刻记后半句。');
+  await panel().getByRole('button', { name: '+ 没听懂' }).click();
+  await panel().getByRole('button', { name: '保存', exact: true }).click();
+  await panel().getByText('这套题的笔记 · 1').waitFor({ timeout: 3000 });
+  await panel().getByText('学术讲座的转折信号词').waitFor({ timeout: 3000 });
+  await countChip('错题笔记\\s*1').waitFor({ timeout: 3000 });
+  // 保存后新建表单清空了，不会把刚才的内容再存一遍
+  const title = await panel().getByPlaceholder(/转折信号词/).inputValue();
+  if (title !== '') throw new Error(`保存后标题框该清空，实际还是「${title}」`);
+});
+
+await step('点列表里的笔记进编辑态，改标题保存', async () => {
+  await panel().getByRole('button', { name: /学术讲座的转折信号词/ }).click();
+  await panel().getByText('编辑笔记').waitFor({ timeout: 3000 });
+  const titleBox = panel().getByPlaceholder(/转折信号词/);
+  if ((await titleBox.inputValue()) !== '学术讲座的转折信号词') throw new Error('编辑态没带上原标题');
+  await titleBox.fill('学术讲座的转折信号词（已改）');
+  await panel().getByRole('button', { name: '保存', exact: true }).click();
+  await panel().getByText('学术讲座的转折信号词（已改）').waitFor({ timeout: 3000 });
+  // 回到列表态，新建表单又在了
+  await panel().getByText('新笔记').waitFor({ timeout: 3000 });
+});
+
+await step('切到生词标签录一个词，来源自动填', async () => {
+  await panel().getByRole('button', { name: /^生词/ }).click();
+  await panel().getByText(/来源自动填成「官方模考 2」/).waitFor({ timeout: 3000 });
+  await panel().getByPlaceholder('单词').fill('ubiquitous');
+  await panel().getByPlaceholder('释义').fill('无处不在的');
+  await panel().getByRole('button', { name: '+ 加入生词本' }).click();
+  await panel().getByText('这套题的生词 · 1').waitFor({ timeout: 3000 });
+  await countChip('生词\\s*1').waitFor({ timeout: 3000 });
+});
+
+await step('切到句型标签录一条写作句型', async () => {
+  await panel().getByRole('button', { name: /^句型/ }).click();
+  await panel().getByRole('button', { name: '写作句型' }).click();
+  await panel().getByPlaceholder('新的写作句型').fill('It is worth noting that');
+  await panel().getByRole('button', { name: '+ 加进写作句型' }).click();
+  await panel().getByText('这套题的句型 · 1').waitFor({ timeout: 3000 });
+  await countChip('句型\\s*1').waitFor({ timeout: 3000 });
+});
+await page.screenshot({ path: `${SHOTS}/05-session-panel.png`, fullPage: true });
+
+await step('关闭面板，URL 里的 panel 参数消失', async () => {
+  await panel().getByRole('button', { name: '关闭面板' }).click();
+  await page.waitForURL((u) => !u.href.includes('panel='), { timeout: 3000 });
+  // count() 是快照，URL 变了 React 可能还没卸载 —— 要等它真的从 DOM 里消失
+  await panel().waitFor({ state: 'detached', timeout: 3000 });
+});
+
+await step('面板里录的生词在全局生词本里，来源是套题名', async () => {
+  await page.goto(`${BASE}/#/vocab`, { waitUntil: 'networkidle' });
+  const row = page.locator('li').filter({ hasText: 'ubiquitous' }).first();
+  await row.waitFor({ timeout: 3000 });
+  const text = await row.innerText();
+  if (!text.includes('官方模考 2')) throw new Error(`生词本里应显示来源「官方模考 2」，实际：${text.replace(/\n/g, ' | ')}`);
+});
+
+await step('科目笔记列表里那条笔记带「来自 官方模考 2」', async () => {
+  await page.goto(`${BASE}/#/toefl-listening?tab=notes`, { waitUntil: 'networkidle' });
+  const item = page.locator('li').filter({ hasText: '学术讲座的转折信号词（已改）' }).first();
+  await item.waitFor({ timeout: 3000 });
+  await item.getByText('来自 官方模考 2').waitFor({ timeout: 3000 });
 });
 await page.screenshot({ path: `${SHOTS}/05-notes.png`, fullPage: true });
+
+await step('从面板里删掉刚才录的生词和句型（× 按钮）', async () => {
+  // 后面备份断言期望生词 / 句型各 1 条（由后续步骤创建），这里把面板录的删干净
+  await page.goto(`${BASE}/#/toefl-listening`, { waitUntil: 'networkidle' });
+  await page.getByText('官方模考 2').first().click();
+  await page.waitForURL(/session\//, { timeout: 5000 });
+  await countChip('生词\\s*1').click();
+  await panel().getByRole('button', { name: /删除生词 ubiquitous/ }).click();
+  await countChip('生词\\s*0').waitFor({ timeout: 3000 });
+  await panel().getByRole('button', { name: /^句型/ }).click();
+  await panel().getByRole('button', { name: '删除这条句型' }).click();
+  await countChip('句型\\s*0').waitFor({ timeout: 3000 });
+  await panel().getByRole('button', { name: '关闭面板' }).click();
+});
+
+await step('手机视口：面板全屏覆盖，无横向溢出，能关掉', async () => {
+  // 用主页面缩视口而不是另开 page —— browser.newPage() 是新 context，没有数据
+  await page.setViewportSize({ width: 390, height: 844 });
+  await countChip('错题笔记\\s*1').click();
+  await panel().waitFor({ timeout: 3000 });
+  const pos = await panel().evaluate((el) => getComputedStyle(el).position);
+  if (pos !== 'fixed') throw new Error(`手机上面板该是 fixed 全屏，实际 position=${pos}`);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+  if (overflow) throw new Error('打开面板后出现横向滚动');
+  await page.screenshot({ path: `${SHOTS}/05b-mobile-panel.png` });
+  await panel().getByRole('button', { name: '关闭面板' }).click();
+  await page.waitForURL((u) => !u.href.includes('panel='), { timeout: 3000 });
+  await page.setViewportSize({ width: 1180, height: 900 });
+});
 
 // 阅读走「考砸」那条路径：Router 未达线 → Lower。听力测的是达线 → Upper，
 // 所以未达线提示和 Lower 的完整保存至今没被跑到过。
