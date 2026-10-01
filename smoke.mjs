@@ -184,6 +184,46 @@ await step('切到句型标签录一条写作句型', async () => {
   await panel().getByText('这套题的句型 · 1').waitFor({ timeout: 3000 });
   await countChip('句型\\s*1').waitFor({ timeout: 3000 });
 });
+await step('拖左边缘调宽：拖动生效、刷新还在、方向键微调、双击恢复', async () => {
+  const handle = () => panel().getByRole('separator', { name: '调整面板宽度' });
+  const widthOf = () => panel().evaluate((el) => Math.round(el.getBoundingClientRect().width));
+
+  if ((await widthOf()) !== 384) throw new Error(`默认宽度该是 384，实际 ${await widthOf()}`);
+
+  // 把手往左拖 100px = 变宽 100
+  const dragLeft = async (dx) => {
+    const box = await handle().boundingBox();
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x - dx, y, { steps: 6 });
+    await page.mouse.up();
+  };
+  await dragLeft(100);
+  if ((await widthOf()) !== 484) throw new Error(`往左拖 100px 后该是 484，实际 ${await widthOf()}`);
+
+  // 刷新还在 —— 宽度记在 localStorage，不进 AppData
+  await page.reload({ waitUntil: 'networkidle' });
+  await panel().waitFor({ timeout: 3000 });
+  if ((await widthOf()) !== 484) throw new Error(`刷新后该还是 484，实际 ${await widthOf()}`);
+  const inBackup = await page.evaluate(() => JSON.stringify(JSON.parse(localStorage.getItem('sunnote:data'))).includes('panelWidth'));
+  if (inBackup) throw new Error('面板宽度不该混进 AppData');
+
+  // 方向键：← 加 16
+  await handle().focus();
+  await page.keyboard.press('ArrowLeft');
+  if ((await widthOf()) !== 500) throw new Error(`← 该加 16 变 500，实际 ${await widthOf()}`);
+
+  // 上限：1180 视口下是 1180 − 224（侧栏）− 88（内边距和间距）− 360（主内容最少）= 508。
+  // 再往左拖 300 也只能到 508，主内容不能被挤没。
+  await dragLeft(300);
+  if ((await widthOf()) !== 508) throw new Error(`该被夹在上限 508，实际 ${await widthOf()}`);
+
+  // 双击恢复默认
+  await handle().dblclick();
+  if ((await widthOf()) !== 384) throw new Error(`双击后该恢复 384，实际 ${await widthOf()}`);
+});
 await page.screenshot({ path: `${SHOTS}/05-session-panel.png`, fullPage: true });
 
 await step('关闭面板，URL 里的 panel 参数消失', async () => {
